@@ -27,6 +27,10 @@ npm run dev
 
 Open the app on port 3847. `npm test` checks the type chart and the fight calls. `npm run lint` runs ESLint.
 
+## Deploy on Vercel
+
+Import the GitHub repository. Vercel detects Next.js. Leave the build command as `npm run build` and do not set environment variables. The build regenerates the type catalog, then builds the app. Use Node.js 20 or newer.
+
 ## Data
 
 Type matchups follow the Revolution Online chart, including Shadow. Species, moves, abilities, and base stats come from the main series, packaged by Pokémon Showdown under the MIT license (`@pkmn/dex`). A tutor that exists only on the server can be typed in anyway: the move search has an "Every move" list.
