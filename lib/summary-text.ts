@@ -10,12 +10,9 @@ export type SummaryRead = {
 }
 
 export function readSummaryText(text: string): SummaryRead {
-  const clean = text.replace(/\s+/g, " ").trim()
-  const levelMatch = clean.match(/lv\.?\s*(\d{1,3})/i)
-  const level = levelMatch ? Number(levelMatch[1]) : null
   return {
     species: null,
-    level: level != null && level > 0 && level <= 100 ? level : null,
+    level: readLevelFromSummary(text),
     ability: null,
     nature: null,
     moves: [],
@@ -42,9 +39,7 @@ export function fillSlotFromSummary(
   const ability = findNamedInText(folded, catalog.abilities) ?? species.abilities[0] ?? null
   const learnset = catalog.learnsets?.[species.id] ?? null
   const moves = pickMoves(text, catalog.moves, learnset)
-
-  const levelMatch = text.replace(/\s+/g, " ").match(/lv\.?\s*(\d{1,3})/i)
-  const level = levelMatch ? Number(levelMatch[1]) : null
+  const level = readLevelFromSummary(text)
 
   return {
     speciesId: species.id,
@@ -53,8 +48,52 @@ export function fillSlotFromSummary(
     moves,
     types: null,
     stats: null,
-    ...(level != null && level > 0 && level <= 100 ? { level } : {}),
+    ...(level != null ? { level } : {}),
   }
+}
+
+/** Prefer Lv next to the name / before Moves — ignore PP, stats, and IDs. */
+export function readLevelFromSummary(text: string): number | null {
+  const beforeMoves = text.split(/\bmoves?\b/i)[0] ?? text
+  // Title strip is where PRO puts "Haxorus" + "Lv. 83".
+  const header = beforeMoves.slice(0, Math.min(beforeMoves.length, 320))
+  const patterns = [
+    /\bl\s*[vye]\s*[.:]?\s*([0-9OIlSBZs]{1,3})\b/gi,
+    /\bleve[l1]\s*[.:]?\s*([0-9OIlSBZs]{1,3})\b/gi,
+    /\blvl\.?\s*[.:]?\s*([0-9OIlSBZs]{1,3})\b/gi,
+  ]
+
+  for (const pattern of patterns) {
+    for (const match of header.matchAll(pattern)) {
+      const level = parseOcrInt(match[1])
+      if (level != null && level >= 1 && level <= 100) return level
+    }
+  }
+
+  // Fallback: first Lv anywhere before Moves.
+  for (const pattern of patterns) {
+    for (const match of beforeMoves.matchAll(pattern)) {
+      const level = parseOcrInt(match[1])
+      if (level != null && level >= 1 && level <= 100) return level
+    }
+  }
+  return null
+}
+
+function parseOcrInt(raw: string): number | null {
+  // Position matters: "B3" → 83, "8B" → 83 (B as 8 at start, as 3 at end).
+  const digits = raw
+    .replace(/^[Bb]/, "8")
+    .replace(/^[Ss]/, "5")
+    .replace(/[Bb]$/, "3")
+    .replace(/[Ss]$/, "5")
+    .replace(/[Oo]/g, "0")
+    .replace(/[Il|]/g, "1")
+    .replace(/[Zz]/g, "2")
+    .replace(/\D/g, "")
+  if (!digits) return null
+  const value = Number(digits)
+  return Number.isFinite(value) ? value : null
 }
 
 function pickMoves(text: string, moves: CatalogMove[], learnset: string[] | null): MoveChoice[] {
@@ -66,35 +105,47 @@ function pickMoves(text: string, moves: CatalogMove[], learnset: string[] | null
   const focus = movesAt >= 0 ? text.slice(movesAt) : text
 
   const fromLines = movesFromPpLines(focus, pool)
+  if (fromLines.length >= 4) return fromLines.slice(0, 4)
+
   const fromScan = findAllNamedInOrder(focus, pool)
   const fromFuzzy = fuzzyMovesFromText(focus, pool)
-  const merged: MoveChoice[] = []
-  for (const move of [...fromLines, ...fromScan.map((entry) => ({ id: entry.id })), ...fromFuzzy.map((entry) => ({ id: entry.id }))]) {
+  const merged: MoveChoice[] = [...fromLines]
+  for (const move of [...fromScan.map((entry) => ({ id: entry.id })), ...fromFuzzy.map((entry) => ({ id: entry.id }))]) {
     if (!merged.some((entry) => entry.id === move.id)) merged.push(move)
     if (merged.length >= 4) break
   }
-  if (merged.length >= 4) return merged.slice(0, 4)
+  if (merged.length >= 3) return merged.slice(0, 4)
 
   // Last resort: scan the whole summary with the learnset pool.
   for (const move of [...findAllNamedInOrder(text, pool), ...fuzzyMovesFromText(text, pool)]) {
     if (!merged.some((entry) => entry.id === move.id)) merged.push({ id: move.id })
     if (merged.length >= 4) break
   }
-  return merged
+  return merged.slice(0, 4)
 }
 
 function movesFromPpLines(text: string, pool: CatalogMove[]): MoveChoice[] {
   const found: MoveChoice[] = []
-  const lines = text.split(/\r?\n/).map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean)
+  // OCR often glues lines; also split on common PP patterns.
+  const lines = text
+    .split(/\r?\n|(?<=\d)\s+(?=[A-Z])|(?<=\/\s*\d{1,2})\s+/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
   for (const line of lines) {
-    // "Thunderbolt 15/15", "Thunderbolt 15015", "Thunder Wave 20 20"
+    // "Thunderbolt 15/15", "Thunderbolt 15015", "Thunder Wave 20 20", "Dragon Pulse 1010"
     const match =
-      line.match(/^([A-Za-z][A-Za-z.'’\- ]{1,24}?)\s+(\d{1,2}\s*\/\s*\d{1,2}|\d{3,4})\b/) ||
-      line.match(/^([A-Za-z][A-Za-z.'’\- ]{1,24}?)\s+\d/)
-    const raw = (match?.[1] ?? "").replace(/\s+/g, " ").trim()
-    if (!raw || raw.split(" ").length > 4) continue
-    if (/^(moves?|ability|nature|ot|exp|current|till|atk|def|spd|spatk|spdef|hp|lv)\b/i.test(raw)) continue
-    const move = matchNamedLoose(raw, pool)
+      line.match(/^([A-Za-z][A-Za-z0-9.'’\- ]{1,28}?)\s+(\d{1,2}\s*\/\s*\d{1,2}|\d{3,4})\b/) ||
+      line.match(/^([A-Za-z][A-Za-z0-9.'’\- ]{1,28}?)\s+\d{1,2}\b/)
+    const original = (match?.[1] ?? "").replace(/\s+/g, " ").trim()
+    if (!original || original.split(" ").length > 4) continue
+    if (
+      /^(moves?|ability|nature|ot|exp|current|till|til|atk|def|spd|spe|spatk|spdef|hp|lv|lvl|bag|item|held)\b/i.test(
+        original,
+      )
+    ) {
+      continue
+    }
+    const move = matchNamedLoose(original, pool)
     if (!move) continue
     if (found.some((entry) => entry.id === move.id)) continue
     found.push({ id: move.id })
@@ -104,18 +155,18 @@ function movesFromPpLines(text: string, pool: CatalogMove[]): MoveChoice[] {
 }
 
 function matchNamedLoose(raw: string, entries: CatalogMove[]): CatalogMove | null {
-  const folded = fold(raw)
+  const folded = ocrFold(raw)
   if (!folded || folded.length < 3) return null
-  const exact = entries.find((entry) => fold(entry.name) === folded)
+  const exact = entries.find((entry) => ocrFold(entry.name) === folded)
   if (exact) return exact
   // OCR often drops spaces or trailing letters: "ThunderWve", "DragonPulse"
   const close = entries.filter((entry) => {
-    const name = fold(entry.name)
+    const name = ocrFold(entry.name)
     return name.startsWith(folded) || folded.startsWith(name) || (folded.length >= 5 && name.includes(folded))
   })
   if (close.length === 1) return close[0]
   if (close.length > 1) {
-    close.sort((a, b) => Math.abs(fold(a.name).length - folded.length) - Math.abs(fold(b.name).length - folded.length))
+    close.sort((a, b) => Math.abs(ocrFold(a.name).length - folded.length) - Math.abs(ocrFold(b.name).length - folded.length))
     return close[0]
   }
   const maxDist = folded.length >= 8 ? 2 : folded.length >= 5 ? 1 : 0
@@ -123,7 +174,7 @@ function matchNamedLoose(raw: string, entries: CatalogMove[]): CatalogMove | nul
   let best: CatalogMove | null = null
   let bestDist = maxDist + 1
   for (const entry of entries) {
-    const name = fold(entry.name)
+    const name = ocrFold(entry.name)
     if (Math.abs(name.length - folded.length) > maxDist) continue
     const dist = editDistance(name, folded)
     if (dist < bestDist) {
@@ -134,6 +185,11 @@ function matchNamedLoose(raw: string, entries: CatalogMove[]): CatalogMove | nul
     }
   }
   return bestDist <= maxDist ? best : null
+}
+
+/** Lowercase + OCR digit confusions common in move names (0/o, 1/l). */
+function ocrFold(value: string) {
+  return fold(value).replace(/0/g, "o").replace(/1/g, "l")
 }
 
 function fuzzyMovesFromText(text: string, pool: CatalogMove[]): CatalogMove[] {

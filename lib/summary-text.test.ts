@@ -110,3 +110,74 @@ Dragon Pulse 10/10`,
     ["thunderbolt", "thunderwave", "thunder", "dragonpulse"],
   )
 })
+
+test("Haxorus level comes from the header Lv, not from PP or stats", () => {
+  const slot = fillSlotFromSummary(
+    `Haxorus
+Lv. 83
+Ability: Mold Breaker
+Nature: Adamant
+HP 120 ATK 200
+Moves
+Outrage 15/15
+Earthquake 10/10
+Dragon Claw 15/15
+Iron Tail 15/15`,
+    {
+      ...catalog,
+      species: [
+        {
+          id: "haxorus",
+          name: "Haxorus",
+          num: 612,
+          types: ["Dragon"],
+          stats: { hp: 1, atk: 1, def: 1, spa: 1, spd: 1, spe: 1 },
+          weight: 1,
+          abilities: [{ id: "moldbreaker", name: "Mold Breaker", hidden: false }],
+        },
+      ],
+      moves: [
+        ...catalog.moves,
+        { id: "outrage", name: "Outrage", type: "Dragon", category: "Physical" as const, bp: 120, acc: 100, pp: 10, priority: 0, desc: "", flags: [] },
+        { id: "earthquake", name: "Earthquake", type: "Ground", category: "Physical" as const, bp: 100, acc: 100, pp: 10, priority: 0, desc: "", flags: [] },
+        { id: "dragonclaw", name: "Dragon Claw", type: "Dragon", category: "Physical" as const, bp: 80, acc: 100, pp: 15, priority: 0, desc: "", flags: [] },
+        { id: "irontail", name: "Iron Tail", type: "Steel", category: "Physical" as const, bp: 100, acc: 75, pp: 15, priority: 0, desc: "", flags: [] },
+      ],
+      natures: [...catalog.natures, { id: "adamant", name: "Adamant", plus: "atk" as const, minus: "spa" as const }],
+      learnsets: {
+        haxorus: ["outrage", "earthquake", "dragonclaw", "irontail"],
+      },
+    },
+  )
+  assert.equal(slot?.speciesId, "haxorus")
+  assert.equal(slot?.level, 83)
+  assert.equal(slot?.moves?.length, 4)
+})
+
+test("OCR Lv. 8B still becomes level 83", () => {
+  const slot = fillSlotFromSummary(
+    `Haxorus Lv. 8B
+Moves
+Outrage 15/15`,
+    {
+      ...catalog,
+      species: [
+        {
+          id: "haxorus",
+          name: "Haxorus",
+          num: 612,
+          types: ["Dragon"],
+          stats: { hp: 1, atk: 1, def: 1, spa: 1, spd: 1, spe: 1 },
+          weight: 1,
+          abilities: [{ id: "moldbreaker", name: "Mold Breaker", hidden: false }],
+        },
+      ],
+      moves: [
+        ...catalog.moves,
+        { id: "outrage", name: "Outrage", type: "Dragon", category: "Physical" as const, bp: 120, acc: 100, pp: 10, priority: 0, desc: "", flags: [] },
+      ],
+      learnsets: { haxorus: ["outrage"] },
+    },
+  )
+  assert.equal(slot?.level, 83)
+})

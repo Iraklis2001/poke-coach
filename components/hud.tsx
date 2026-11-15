@@ -232,7 +232,10 @@ function Hud() {
       patchSlot(fight.active, filled)
       const name = catalog.speciesById.get(filled.speciesId ?? "")?.name ?? "Pokémon"
       const moveCount = filled.moves?.length ?? 0
-      setSeen(`${name} saved in slot ${fight.active + 1}${moveCount ? ` · ${moveCount} moves` : ""}.`)
+      const level = filled.level ?? fight.party[fight.active].level
+      setSeen(
+        `${name} Lv ${level} · slot ${fight.active + 1}${moveCount ? ` · ${moveCount}/4 moves` : " · no moves read"} — tap Edit if wrong.`,
+      )
     } catch {
       setSeen("The summary could not be read.")
     } finally {
@@ -270,7 +273,7 @@ function Hud() {
                 className="shrink-0 text-[11px] font-bold text-[#3b4cca] hover:text-[#e3350d]"
                 onClick={() => setEditMoves((open) => !open)}
               >
-                {editMoves ? "Done" : "Edit moves"}
+                {editMoves ? "Done" : "Edit"}
               </button>
             </div>
 
@@ -445,6 +448,21 @@ function MoveEditPanel({
 
   return (
     <div className="mt-2 space-y-1.5">
+      <label className="flex items-center gap-1.5">
+        <span className="w-10 shrink-0 text-[10px] font-bold text-black">Lv</span>
+        <input
+          type="number"
+          min={1}
+          max={100}
+          value={slot.level}
+          className="h-7 w-16 rounded-none border-2 border-black bg-white px-1.5 text-[12px] font-bold text-black outline-none"
+          onChange={(event) => {
+            const next = Number(event.target.value)
+            if (!Number.isFinite(next)) return
+            onChange({ level: Math.min(100, Math.max(1, Math.round(next))) })
+          }}
+        />
+      </label>
       <p className="text-[11px] font-bold text-black">Type a move name, then pick it.</p>
       {rows.map((row, index) => (
         <MoveSlotField

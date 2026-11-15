@@ -216,6 +216,11 @@ function boostForOcr(png) {
   }
 }
 
+function ocrScore(value) {
+  // Letters for names/moves; digits for Lv and PP.
+  return (value.match(/[A-Za-z]/g) || []).length + (value.match(/\d/g) || []).length
+}
+
 async function recognize(png, { line = false } = {}) {
   if (!reader) {
     const { createWorker } = require("tesseract.js")
@@ -232,17 +237,30 @@ async function recognize(png, { line = false } = {}) {
       })
   }
   const worker = await reader
-  // 7 = single text line (foe nameplate). 6 = sparse text (summaries).
-  await worker.setParameters({ tessedit_pageseg_mode: line ? "7" : "6" })
   const boosted = boostForOcr(png)
-  const first = await worker.recognize(boosted)
-  let text = first.data.text || ""
-  const second = await worker.recognize(png)
-  const alt = second.data.text || ""
-  // Prefer the pass with more letters — nameplates are short, so length alone is weak.
-  const score = (value) => (value.match(/[A-Za-z]/g) || []).length
-  if (score(alt) > score(text)) text = alt
-  return text
+  // 7 = nameplate line. 6/4 = summary panels (sparse / single column).
+  const modes = line ? ["7"] : ["6", "4"]
+  let best = ""
+  let bestScore = -1
+  for (const mode of modes) {
+    await worker.setParameters({
+      tessedit_pageseg_mode: mode,
+      tessedit_char_whitelist:
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./:'- ♂♀",
+    })
+    for (const image of [boosted, png]) {
+      const result = await worker.recognize(image)
+      const text = result.data.text || ""
+      const score = ocrScore(text)
+      if (score > bestScore) {
+        best = text
+        bestScore = score
+      }
+    }
+  }
+  // Clear whitelist so later calls are not stuck filtered.
+  await worker.setParameters({ tessedit_char_whitelist: "" })
+  return best
 }
 
 async function captureRegion(region) {
