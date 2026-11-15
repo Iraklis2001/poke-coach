@@ -18,14 +18,18 @@ Weather buttons cover sun, rain, and sand. Health sliders cover a hurt Pokémon.
 
 ## Run it locally
 
-Node.js 20 or newer.
+Node.js 20 or newer, from https://nodejs.org.
+
+On Windows, download the project as a zip, unzip it, and double-click `Start Overlay.bat`. The first start installs the app, then the small window opens above the game. The game can stay in its own folder.
+
+From a terminal, the same start is:
 
 ```bash
 npm install
-npm run dev
+npm run overlay
 ```
 
-Open the app on port 3847. `npm run overlay` opens the always-on-top panel. `npm test` checks the type chart and the fight calls. `npm run lint` runs ESLint.
+`npm run dev` opens the full page on port 3847. `npm test` checks the type chart and the fight calls. `npm run lint` runs ESLint.
 
 ## Deploy on Vercel
 
