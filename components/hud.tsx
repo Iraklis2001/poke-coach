@@ -240,17 +240,17 @@ function Hud() {
           )}
 
           {!prefs.compact && advice && advice.moves.length > 0 ? (
-            <ul className="mt-3 grid grid-cols-2 gap-2">
+            <ul className="mt-3 flex flex-col gap-2">
               {advice.moves.map((move) => (
                 <li key={`${move.id}-${move.type}`}>
                   <div
                     className={cn(
-                      "flex h-full min-h-14 flex-col justify-center rounded-none bg-white px-2.5 py-2 text-left text-black",
+                      "flex items-baseline gap-2 rounded-none bg-white px-2.5 py-2 text-left text-black",
                       move.recommended ? "border-2 border-blue-600 bg-blue-100" : "border-2 border-black",
                     )}
                   >
-                    <span className="truncate text-[13px] font-bold">{move.name}</span>
-                    <span className="mt-0.5 truncate text-[10px] font-bold uppercase tracking-wide text-black">{move.label}</span>
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-bold">{move.name}</span>
+                    <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-black">{move.label}</span>
                   </div>
                 </li>
               ))}
