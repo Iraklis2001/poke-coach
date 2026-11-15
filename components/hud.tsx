@@ -10,6 +10,14 @@ import { CatalogProvider, useCatalog } from "@/components/catalog-context"
 import { cn } from "cn"
 
 const BOX_KEY = "slate-battle-box"
+const PREFS_KEY = "slate-overlay-prefs"
+
+type Prefs = {
+  compact: boolean
+  opacity: number
+}
+
+const DEFAULT_PREFS: Prefs = { compact: true, opacity: 0.95 }
 
 export function HudApp() {
   const { ready } = useFight()
@@ -37,7 +45,9 @@ export function HudApp() {
     return (
       <div className="p-2">
         <Window>
-          <TitleBar title="Slate" />
+          <header className="hud-drag border-b border-[#12161a] bg-[#3a424c] px-2 py-1">
+            <p className="text-[13px] text-white">Slate</p>
+          </header>
           <p className="px-3 py-4 text-[13px] text-[#d7dde4]">{error ? "The type chart did not load." : "Opening…"}</p>
         </Window>
       </div>
@@ -69,6 +79,8 @@ function Hud() {
   const [watching, setWatching] = useState(false)
   const [boxTick, setBoxTick] = useState(0)
   const [seen, setSeen] = useState("")
+  const [passThrough, setPassThrough] = useState(false)
+  const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS)
   const fightRef = useRef(fight)
   const catalogRef = useRef(catalog)
   fightRef.current = fight
@@ -77,6 +89,19 @@ function Hud() {
 
   useEffect(() => {
     if (window.slate?.readRegion) setDesktop(true)
+    setPrefs(loadPrefs())
+  }, [])
+
+  useEffect(() => {
+    if (!desktop || !window.slate) return
+    window.slate.setOpacity(prefs.opacity)
+    window.slate.setCompact?.(prefs.compact)
+    window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs))
+  }, [desktop, prefs])
+
+  useEffect(() => {
+    if (!window.slate?.onClickThrough) return
+    return window.slate.onClickThrough(setPassThrough)
   }, [])
 
   useEffect(() => {
@@ -150,14 +175,32 @@ function Hud() {
     setQuery("")
   }
 
+  function patchPrefs(next: Partial<Prefs>) {
+    setPrefs((current) => ({ ...current, ...next }))
+  }
+
   return (
     <div className="p-2">
       <Window>
         <TitleBar
           title={foe?.name ?? "Wild Pokémon"}
           level={foe ? `Lv ${foe.level}` : ""}
+          compact={prefs.compact}
+          passThrough={passThrough}
+          desktop={desktop}
           onClose={desktop ? () => window.slate?.close() : undefined}
+          onToggleCompact={() => patchPrefs({ compact: !prefs.compact })}
+          onTogglePassThrough={() => window.slate?.setClickThrough(!passThrough)}
+          onOpacity={(delta) => patchPrefs({ opacity: Math.min(1, Math.max(0.5, prefs.opacity + delta)) })}
+          onSnap={(corner) => window.slate?.snap?.(corner)}
         />
+
+        {passThrough ? (
+          <div className="hud-nodrag border-t border-[#12161a] bg-[#1f252b] px-3 py-2 text-[12px] text-[#f0d36a]">
+            Clicks go to the game. Alt+Shift+S unlocks the window.
+          </div>
+        ) : null}
+
         <div className="hud-nodrag px-3 py-2.5">
           <button
             type="button"
@@ -169,7 +212,7 @@ function Hud() {
 
           {pick ? (
             <div className="mt-1">
-              <p className="text-[18px] leading-none text-white">{pick.name}</p>
+              <p className="text-[20px] leading-none text-white">{pick.name}</p>
               <p className="mt-1 text-[12px] text-[#d5dde4]">
                 {pick.type}. {pick.label}.
               </p>
@@ -180,7 +223,7 @@ function Hud() {
             </p>
           )}
 
-          {advice && advice.moves.length > 0 ? (
+          {!prefs.compact && advice && advice.moves.length > 0 ? (
             <ul className="mt-3 border-t border-[#12161a]">
               {advice.moves.map((move) => (
                 <li
@@ -198,7 +241,7 @@ function Hud() {
             </ul>
           ) : null}
 
-          {advice && !pick && advice.switches.some((option) => option.recommended) ? (
+          {!prefs.compact && advice && !pick && advice.switches.some((option) => option.recommended) ? (
             <p className="mt-2 text-[12px] leading-5 text-[#d5dde4]">
               {advice.switches
                 .filter((option) => option.recommended)
@@ -207,50 +250,94 @@ function Hud() {
             </p>
           ) : null}
 
-          <label className="mt-3 block">
-            <span className="sr-only">Pokémon in front of you</span>
-            <input
-              value={query}
-              placeholder={foe ? foe.name : "Pokémon in front of you"}
-              className="h-7 w-full border border-[#12161a] bg-[#1a1e22] px-2 text-[13px] text-white outline-none placeholder:text-[#8b97a3]"
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </label>
-          {desktop ? (
-            <div className="mt-2 flex items-center gap-2">
-              <button
-                type="button"
-                className="border border-[#12161a] bg-[#3a424c] px-2 py-1 text-[12px] text-white"
-                onClick={() => void watchBattle(setWatching, setSeen)}
-              >
-                {watching ? "Stop" : "Watch battle"}
-              </button>
-              <button type="button" className="px-1 text-[12px] text-[#9aa6b1]" onClick={() => void chooseBox(setWatching, setSeen, setBoxTick)}>
-                Box
-              </button>
-              {seen ? <p className="min-w-0 flex-1 truncate text-[11px] text-[#9aa6b1]">{seen}</p> : null}
-            </div>
-          ) : null}
-          {matches.length > 0 ? (
-            <ul className="mt-1 border border-[#12161a] bg-[#1a1e22]">
-              {matches.map((species) => (
-                <li key={species.id}>
+          {!prefs.compact ? (
+            <>
+              <label className="mt-3 block">
+                <span className="sr-only">Pokémon in front of you</span>
+                <input
+                  value={query}
+                  placeholder={foe ? foe.name : "Pokémon in front of you"}
+                  className="h-7 w-full border border-[#12161a] bg-[#1a1e22] px-2 text-[13px] text-white outline-none placeholder:text-[#8b97a3]"
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </label>
+              {desktop ? (
+                <div className="mt-2 flex items-center gap-2">
                   <button
                     type="button"
-                    className="flex w-full items-baseline justify-between px-2 py-1 text-left text-[13px] text-[#d5dde4] hover:bg-[#3c4652]"
-                    onClick={() => chooseFoe(species.id)}
+                    className="border border-[#12161a] bg-[#3a424c] px-2 py-1 text-[12px] text-white"
+                    onClick={() => void watchBattle(setWatching, setSeen)}
                   >
-                    <span>{species.name}</span>
-                    <span className="text-[11px] text-[#8b97a3]">{species.types.join(" / ")}</span>
+                    {watching ? "Stop" : "Watch battle"}
                   </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
+                  <button
+                    type="button"
+                    className="px-1 text-[12px] text-[#9aa6b1]"
+                    onClick={() => void chooseBox(setWatching, setSeen, setBoxTick)}
+                  >
+                    Box
+                  </button>
+                  {seen ? <p className="min-w-0 flex-1 truncate text-[11px] text-[#9aa6b1]">{seen}</p> : null}
+                </div>
+              ) : null}
+              {matches.length > 0 ? (
+                <ul className="mt-1 border border-[#12161a] bg-[#1a1e22]">
+                  {matches.map((species) => (
+                    <li key={species.id}>
+                      <button
+                        type="button"
+                        className="flex w-full items-baseline justify-between px-2 py-1 text-left text-[13px] text-[#d5dde4] hover:bg-[#3c4652]"
+                        onClick={() => chooseFoe(species.id)}
+                      >
+                        <span>{species.name}</span>
+                        <span className="text-[11px] text-[#8b97a3]">{species.types.join(" / ")}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </>
+          ) : (
+            <div className="mt-2 flex items-center gap-2 text-[11px] text-[#9aa6b1]">
+              {desktop ? (
+                <>
+                  <button
+                    type="button"
+                    className="border border-[#12161a] bg-[#3a424c] px-2 py-0.5 text-[11px] text-white"
+                    onClick={() => void watchBattle(setWatching, setSeen)}
+                  >
+                    {watching ? "Stop" : "Watch"}
+                  </button>
+                  <button
+                    type="button"
+                    className="px-1 text-[11px] text-[#9aa6b1]"
+                    onClick={() => void chooseBox(setWatching, setSeen, setBoxTick)}
+                  >
+                    Box
+                  </button>
+                </>
+              ) : null}
+              {seen ? <p className="min-w-0 flex-1 truncate">{seen}</p> : <p className="min-w-0 flex-1 truncate">Drag the top bar to move.</p>}
+            </div>
+          )}
         </div>
       </Window>
     </div>
   )
+}
+
+function loadPrefs(): Prefs {
+  try {
+    const raw = window.localStorage.getItem(PREFS_KEY)
+    if (!raw) return DEFAULT_PREFS
+    const parsed = JSON.parse(raw) as Partial<Prefs>
+    return {
+      compact: parsed.compact ?? DEFAULT_PREFS.compact,
+      opacity: Math.min(1, Math.max(0.5, parsed.opacity ?? DEFAULT_PREFS.opacity)),
+    }
+  } catch {
+    return DEFAULT_PREFS
+  }
 }
 
 async function chooseBox(
@@ -292,12 +379,68 @@ function Window({ children }: { children: ReactNode }) {
   )
 }
 
-function TitleBar({ title, level, onClose }: { title: string; level?: string; onClose?: () => void }) {
+function TitleBar({
+  title,
+  level,
+  compact,
+  passThrough,
+  desktop,
+  onClose,
+  onToggleCompact,
+  onTogglePassThrough,
+  onOpacity,
+  onSnap,
+}: {
+  title: string
+  level?: string
+  compact: boolean
+  passThrough: boolean
+  desktop: boolean
+  onClose?: () => void
+  onToggleCompact: () => void
+  onTogglePassThrough: () => void
+  onOpacity: (delta: number) => void
+  onSnap: (corner: "tl" | "tr" | "bl" | "br") => void
+}) {
   return (
-    <header className="hud-drag flex items-center gap-2 border-b border-[#12161a] bg-[#3a424c] px-2 py-1">
+    <header className="hud-drag flex items-center gap-1 border-b border-[#12161a] bg-[#3a424c] px-1.5 py-1">
+      <span className="cursor-grab px-1 text-[14px] leading-none text-[#9aa6b1]" title="Drag to move">
+        ⠿
+      </span>
       <p className="min-w-0 flex-1 truncate text-[13px] text-white">{title}</p>
       {level ? <p className="text-[12px] text-[#f0d36a]">{level}</p> : null}
-      {onClose ? (
+      {desktop ? (
+        <div className="hud-nodrag flex items-center gap-0.5">
+          <button type="button" className="px-1 text-[11px] text-[#d5dde4] hover:text-white" title="Smaller" onClick={() => onOpacity(-0.1)}>
+            −
+          </button>
+          <button type="button" className="px-1 text-[11px] text-[#d5dde4] hover:text-white" title="Clearer" onClick={() => onOpacity(0.1)}>
+            +
+          </button>
+          <button
+            type="button"
+            className={cn("px-1 text-[11px] hover:text-white", passThrough ? "text-[#f0d36a]" : "text-[#d5dde4]")}
+            title="Clicks go through to the game (Alt+Shift+S)"
+            onClick={onTogglePassThrough}
+          >
+            Play
+          </button>
+          <button type="button" className="px-1 text-[11px] text-[#d5dde4] hover:text-white" title={compact ? "Show moves" : "Hide moves"} onClick={onToggleCompact}>
+            {compact ? "More" : "Less"}
+          </button>
+          <button type="button" className="px-1 text-[11px] text-[#d5dde4] hover:text-white" title="Park top left" onClick={() => onSnap("tl")}>
+            TL
+          </button>
+          <button type="button" className="px-1 text-[11px] text-[#d5dde4] hover:text-white" title="Park top right" onClick={() => onSnap("tr")}>
+            TR
+          </button>
+          {onClose ? (
+            <button type="button" className="px-1 text-[12px] text-[#d5dde4] hover:text-white" onClick={onClose}>
+              ✕
+            </button>
+          ) : null}
+        </div>
+      ) : onClose ? (
         <button type="button" className="hud-nodrag px-1 text-[12px] text-[#d5dde4] hover:text-white" onClick={onClose}>
           ✕
         </button>
@@ -315,6 +458,8 @@ declare global {
       onClickThrough: (callback: (on: boolean) => void) => () => void
       pickRegion?: () => Promise<{ x: number; y: number; width: number; height: number } | null>
       readRegion?: (region: { x: number; y: number; width: number; height: number }) => Promise<{ text: string; error?: string }>
+      setCompact?: (compact: boolean) => void
+      snap?: (corner: "tl" | "tr" | "bl" | "br") => void
     }
   }
 }

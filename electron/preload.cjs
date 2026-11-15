@@ -21,4 +21,10 @@ contextBridge.exposeInMainWorld("slate", {
   readRegion(region) {
     return ipcRenderer.invoke("read-region", region)
   },
+  setCompact(compact) {
+    ipcRenderer.send("set-compact", Boolean(compact))
+  },
+  snap(corner) {
+    ipcRenderer.send("snap", corner)
+  },
 })

@@ -1,21 +1,46 @@
 const { app, BrowserWindow, desktopCapturer, globalShortcut, ipcMain, screen } = require("electron")
+const fs = require("fs")
 const path = require("path")
 
 const START_URL = process.env.SLATE_URL || "http://127.0.0.1:3847/overlay"
+const BOUNDS_FILE = () => path.join(app.getPath("userData"), "overlay-bounds.json")
 
 let passThrough = false
 let overlay = null
+let compact = true
+
+function loadBounds() {
+  try {
+    return JSON.parse(fs.readFileSync(BOUNDS_FILE(), "utf8"))
+  } catch {
+    return null
+  }
+}
+
+function saveBounds() {
+  if (!overlay || overlay.isDestroyed()) return
+  try {
+    fs.writeFileSync(BOUNDS_FILE(), JSON.stringify({ ...overlay.getBounds(), compact }))
+  } catch {
+    // ignore disk errors
+  }
+}
 
 function createWindow() {
+  const saved = loadBounds()
+  compact = saved?.compact ?? true
   const win = new BrowserWindow({
-    width: 320,
-    height: 430,
-    minWidth: 300,
-    minHeight: 280,
+    x: saved?.x,
+    y: saved?.y,
+    width: compact ? 280 : saved?.width || 320,
+    height: compact ? 180 : saved?.height || 360,
+    minWidth: 220,
+    minHeight: 120,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
     hasShadow: true,
+    resizable: true,
     backgroundColor: "#00000000",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -39,18 +64,44 @@ function createWindow() {
   ipcMain.removeAllListeners("click-through")
   ipcMain.removeAllListeners("opacity")
   ipcMain.removeAllListeners("close")
+  ipcMain.removeAllListeners("set-compact")
+  ipcMain.removeAllListeners("snap")
   ipcMain.on("click-through", (_event, on) => setPassThrough(Boolean(on)))
   ipcMain.on("opacity", (_event, value) => {
-    const next = Math.min(1, Math.max(0.45, Number(value) || 1))
+    const next = Math.min(1, Math.max(0.5, Number(value) || 1))
     win.setOpacity(next)
   })
   ipcMain.on("close", () => {
     if (!win.isDestroyed()) win.close()
   })
+  ipcMain.on("set-compact", (_event, next) => {
+    compact = Boolean(next)
+    const bounds = win.getBounds()
+    if (compact) win.setSize(280, 180, true)
+    else win.setSize(Math.max(bounds.width, 320), Math.max(bounds.height, 360), true)
+    saveBounds()
+  })
+  ipcMain.on("snap", (_event, corner) => {
+    const display = screen.getDisplayMatching(win.getBounds())
+    const work = display.workArea
+    const size = win.getBounds()
+    const gap = 12
+    const places = {
+      tl: { x: work.x + gap, y: work.y + gap },
+      tr: { x: work.x + work.width - size.width - gap, y: work.y + gap },
+      bl: { x: work.x + gap, y: work.y + work.height - size.height - gap },
+      br: { x: work.x + work.width - size.width - gap, y: work.y + work.height - size.height - gap },
+    }
+    const place = places[corner]
+    if (place) win.setPosition(Math.round(place.x), Math.round(place.y))
+    saveBounds()
+  })
 
   globalShortcut.unregister("Alt+Shift+S")
   globalShortcut.register("Alt+Shift+S", () => setPassThrough(!passThrough))
 
+  win.on("moved", saveBounds)
+  win.on("resized", saveBounds)
   win.on("closed", () => {
     overlay = null
     globalShortcut.unregister("Alt+Shift+S")
