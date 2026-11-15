@@ -45,7 +45,7 @@ export function HudApp() {
     return (
       <div className="p-2">
         <Window>
-          <header className="hud-drag border-b-2 border-black bg-[#2040a0] px-3 py-1.5">
+          <header className="hud-drag border-b-2 border-black bg-[#e3350d] px-3 py-1.5">
             <p className="text-[13px] font-bold text-white">Slate</p>
           </header>
           <p className="px-3 py-4 text-[13px] text-black">{error ? "The type chart did not load." : "Opening…"}</p>
@@ -211,7 +211,7 @@ function Hud() {
         {through ? (
           <div className="hud-nodrag flex items-center gap-2 border-b-2 border-black bg-[#e0e0e0] px-3 py-2">
             <p className="min-w-0 flex-1 text-[12px] font-bold text-black">Hover here to use the window.</p>
-            <button type="button" className="border-2 border-black bg-white px-2 py-0.5 text-[12px] font-bold text-black hover:text-[#2040a0]" onClick={() => setThrough(false)}>
+            <button type="button" className="border-2 border-black bg-white px-2 py-0.5 text-[12px] font-bold text-black hover:text-[#3b4cca]" onClick={() => setThrough(false)}>
               Unlock
             </button>
           </div>
@@ -220,7 +220,7 @@ function Hud() {
         <div className="hud-nodrag px-3 py-3">
           <button
             type="button"
-            className="text-[12px] font-bold text-black hover:text-[#2040a0]"
+            className="text-[12px] font-bold text-black hover:text-[#3b4cca]"
             onClick={() => setActive((fight.active + 1) % fight.party.length)}
           >
             {you?.name ?? "Your Pokémon"}
@@ -245,8 +245,8 @@ function Hud() {
                 <li key={`${move.id}-${move.type}`}>
                   <div
                     className={cn(
-                      "flex h-full min-h-14 flex-col justify-center rounded-none border-black bg-white px-2.5 py-2 text-left text-black",
-                      move.recommended ? "border-4 bg-yellow-200" : "border-2",
+                      "flex h-full min-h-14 flex-col justify-center rounded-none bg-white px-2.5 py-2 text-left text-black",
+                      move.recommended ? "border-2 border-blue-600 bg-blue-100" : "border-2 border-black",
                     )}
                   >
                     <span className="truncate text-[13px] font-bold">{move.name}</span>
@@ -278,10 +278,10 @@ function Hud() {
                 />
               </label>
               {desktop ? (
-                <div className="mt-2 flex items-stretch overflow-hidden rounded-none border-2 border-black bg-[#e0e0e0]">
+                <div className="mt-2 flex items-stretch overflow-hidden rounded-none border-2 border-black bg-[#3b4cca]">
                   <button
                     type="button"
-                    className="px-2.5 py-2 text-[12px] font-bold text-black hover:text-[#2040a0]"
+                    className="px-2.5 py-2 text-[12px] font-bold text-white hover:text-yellow-200"
                     onClick={() => void watchBattle(setWatching, setSeen)}
                   >
                     {watching ? "Stop" : "Watch"}
@@ -289,7 +289,7 @@ function Hud() {
                   <span className="w-0.5 self-stretch bg-black" aria-hidden />
                   <button
                     type="button"
-                    className="px-2.5 py-2 text-[12px] font-bold text-black hover:text-[#2040a0]"
+                    className="px-2.5 py-2 text-[12px] font-bold text-white hover:text-yellow-200"
                     onClick={() => void chooseBox(setWatching, setSeen, setBoxTick)}
                   >
                     Box
@@ -297,7 +297,7 @@ function Hud() {
                   <span className="w-0.5 self-stretch bg-black" aria-hidden />
                   <button
                     type="button"
-                    className={cn("px-2.5 py-2 text-[12px] font-bold hover:text-[#2040a0]", through ? "text-[#2040a0]" : "text-black")}
+                    className={cn("px-2.5 py-2 text-[12px] font-bold text-white hover:text-yellow-200", through && "text-yellow-200")}
                     onClick={() => setThrough((current) => !current)}
                   >
                     {through ? "Unlock" : "Through"}
@@ -305,7 +305,7 @@ function Hud() {
                   <span className="w-0.5 self-stretch bg-black" aria-hidden />
                   <button
                     type="button"
-                    className="px-2.5 py-2 text-[12px] font-bold text-black hover:text-[#2040a0]"
+                    className="px-2.5 py-2 text-[12px] font-bold text-white hover:text-yellow-200"
                     onClick={() => window.slate?.snap?.("tr")}
                   >
                     Corner
@@ -313,7 +313,7 @@ function Hud() {
                   {seen ? (
                     <>
                       <span className="w-0.5 self-stretch bg-black" aria-hidden />
-                      <p className="min-w-0 flex-1 truncate px-2 py-2 text-[11px] font-bold text-black">{seen}</p>
+                      <p className="min-w-0 flex-1 truncate px-2 py-2 text-[11px] font-bold text-white">{seen}</p>
                     </>
                   ) : null}
                 </div>
@@ -324,7 +324,7 @@ function Hud() {
                     <li key={species.id} className="border-b-2 border-black last:border-b-0">
                       <button
                         type="button"
-                        className="flex w-full items-baseline justify-between px-2.5 py-1.5 text-left text-[13px] font-bold text-black hover:text-[#2040a0]"
+                        className="flex w-full items-baseline justify-between px-2.5 py-1.5 text-left text-[13px] font-bold text-black hover:text-[#3b4cca]"
                         onClick={() => chooseFoe(species.id)}
                       >
                         <span>{species.name}</span>
@@ -336,12 +336,12 @@ function Hud() {
               ) : null}
             </>
           ) : (
-            <div className="mt-2 flex items-stretch overflow-hidden rounded-none border-2 border-black bg-[#e0e0e0] text-[11px]">
+            <div className="mt-2 flex items-stretch overflow-hidden rounded-none border-2 border-black bg-[#3b4cca] text-[11px]">
               {desktop ? (
                 <>
                   <button
                     type="button"
-                    className="px-2.5 py-2 font-bold text-black hover:text-[#2040a0]"
+                    className="px-2.5 py-2 font-bold text-white hover:text-yellow-200"
                     onClick={() => void watchBattle(setWatching, setSeen)}
                   >
                     {watching ? "Stop" : "Watch"}
@@ -349,7 +349,7 @@ function Hud() {
                   <span className="w-0.5 self-stretch bg-black" aria-hidden />
                   <button
                     type="button"
-                    className="px-2.5 py-2 font-bold text-black hover:text-[#2040a0]"
+                    className="px-2.5 py-2 font-bold text-white hover:text-yellow-200"
                     onClick={() => void chooseBox(setWatching, setSeen, setBoxTick)}
                   >
                     Box
@@ -358,9 +358,9 @@ function Hud() {
                 </>
               ) : null}
               {seen ? (
-                <p className="min-w-0 flex-1 truncate px-2 py-2 font-bold text-black">{seen}</p>
+                <p className="min-w-0 flex-1 truncate px-2 py-2 font-bold text-white">{seen}</p>
               ) : (
-                <p className="min-w-0 flex-1 truncate px-2 py-2 font-bold text-black">Drag the top bar.</p>
+                <p className="min-w-0 flex-1 truncate px-2 py-2 font-bold text-white">Drag the top bar.</p>
               )}
             </div>
           )}
@@ -434,7 +434,7 @@ function TitleBar({
   onToggleCompact: () => void
 }) {
   return (
-    <header className="hud-drag flex items-center gap-2 border-b-2 border-black bg-[#2040a0] px-3 py-1.5" title="Drag to move">
+    <header className="hud-drag flex items-center gap-2 border-b-2 border-black bg-[#e3350d] px-3 py-1.5" title="Drag to move">
       <p className="min-w-0 flex-1 truncate text-[13px] font-bold text-white">{title}</p>
       {level ? <p className="text-[12px] font-bold text-white">{level}</p> : null}
       <div className="hud-nodrag flex items-center gap-2">
