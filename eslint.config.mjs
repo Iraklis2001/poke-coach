@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Electron runs as CommonJS outside the Next bundle.
+    "electron/**",
   ]),
 ]);
 

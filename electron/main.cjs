@@ -1,6 +1,7 @@
-const { app, BrowserWindow, desktopCapturer, globalShortcut, ipcMain, nativeImage, screen } = require("electron")
+const { app, BrowserWindow, globalShortcut, ipcMain, screen } = require("electron")
 const fs = require("fs")
 const path = require("path")
+const { captureRegion } = require("./ocr.cjs")
 
 const START_URL = process.env.SLATE_URL || "http://127.0.0.1:3847/overlay"
 const BOUNDS_FILE = () => path.join(app.getPath("userData"), "overlay-bounds.json")
@@ -26,6 +27,16 @@ function saveBounds() {
   }
 }
 
+function keepWindowOnTop(win) {
+  if (win.isDestroyed()) return
+  win.setAlwaysOnTop(true, "screen-saver")
+  try {
+    win.moveTop()
+  } catch {
+    // moveTop is best-effort on some Windows builds
+  }
+}
+
 function createWindow() {
   const saved = loadBounds()
   compact = saved?.compact ?? true
@@ -37,8 +48,7 @@ function createWindow() {
     minWidth: 360,
     minHeight: 180,
     frame: false,
-    // Solid window (not transparent). Discord's whole-screen capture often
-    // skips layered/transparent Electron windows even when content protection is off.
+    // Solid window so Discord whole-screen share can capture Slate.
     transparent: false,
     alwaysOnTop: true,
     hasShadow: true,
@@ -56,34 +66,47 @@ function createWindow() {
   win.setContentProtection(false)
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
-  function keepOnTop() {
-    if (win.isDestroyed()) return
-    // screen-saver beats most game windows; floating let PRO bury Slate.
-    win.setAlwaysOnTop(true, "screen-saver")
-    try {
-      win.moveTop()
-    } catch {
-      // moveTop is best-effort on some Windows builds
-    }
-  }
-
   function setPassThrough(next) {
     passThrough = next
     win.setIgnoreMouseEvents(passThrough, { forward: true })
     if (!win.isDestroyed()) win.webContents.send("click-through", passThrough)
   }
 
-  keepOnTop()
+  keepWindowOnTop(win)
+  wireWindowIpc(win, setPassThrough)
 
-  ipcMain.removeAllListeners("click-through")
-  ipcMain.removeAllListeners("opacity")
-  ipcMain.removeAllListeners("close")
-  ipcMain.removeAllListeners("set-compact")
-  ipcMain.removeAllListeners("snap")
+  globalShortcut.unregister("Alt+Shift+S")
+  globalShortcut.register("Alt+Shift+S", () => setPassThrough(!passThrough))
+
+  win.on("moved", saveBounds)
+  win.on("resized", saveBounds)
+  win.on("show", () => keepWindowOnTop(win))
+  win.on("focus", () => {
+    setPassThrough(false)
+    keepWindowOnTop(win)
+  })
+  win.on("blur", () => {
+    setTimeout(() => keepWindowOnTop(win), 50)
+  })
+  const pinTimer = setInterval(() => keepWindowOnTop(win), 2000)
+  win.on("closed", () => {
+    clearInterval(pinTimer)
+    overlay = null
+    globalShortcut.unregister("Alt+Shift+S")
+  })
+
+  setPassThrough(false)
+  win.loadURL(START_URL)
+}
+
+function wireWindowIpc(win, setPassThrough) {
+  for (const channel of ["click-through", "opacity", "close", "set-compact", "snap"]) {
+    ipcMain.removeAllListeners(channel)
+  }
+
   ipcMain.on("click-through", (_event, on) => setPassThrough(Boolean(on)))
   ipcMain.on("opacity", (_event, value) => {
-    const next = Math.min(1, Math.max(0.5, Number(value) || 1))
-    win.setOpacity(next)
+    win.setOpacity(Math.min(1, Math.max(0.5, Number(value) || 1)))
   })
   ipcMain.on("close", () => {
     if (!win.isDestroyed()) win.close()
@@ -110,30 +133,6 @@ function createWindow() {
     if (place) win.setPosition(Math.round(place.x), Math.round(place.y))
     saveBounds()
   })
-
-  globalShortcut.unregister("Alt+Shift+S")
-  globalShortcut.register("Alt+Shift+S", () => setPassThrough(!passThrough))
-
-  win.on("moved", saveBounds)
-  win.on("resized", saveBounds)
-  win.on("show", keepOnTop)
-  win.on("focus", () => {
-    setPassThrough(false)
-    keepOnTop()
-  })
-  // When you click the game, Windows drops Slate under it — pin it back without stealing keys.
-  win.on("blur", () => {
-    setTimeout(keepOnTop, 50)
-  })
-  const pinTimer = setInterval(keepOnTop, 2000)
-  win.on("closed", () => {
-    clearInterval(pinTimer)
-    overlay = null
-    globalShortcut.unregister("Alt+Shift+S")
-  })
-
-  setPassThrough(false)
-  win.loadURL(START_URL)
 }
 
 function virtualScreen() {
@@ -192,111 +191,6 @@ function pickRegion() {
     picker.on("closed", () => finish(null))
     picker.loadFile(path.join(__dirname, "region.html"))
   })
-}
-
-let reader = null
-
-function boostForOcr(png) {
-  try {
-    const image = nativeImage.createFromBuffer(png)
-    const { width, height } = image.getSize()
-    if (!width || !height) return png
-    const bgra = Buffer.from(image.toBitmap())
-    // PRO summaries are light text on a dark panel. Flip to black text on white.
-    for (let i = 0; i + 3 < bgra.length; i += 4) {
-      const gray = 0.114 * bgra[i] + 0.587 * bgra[i + 1] + 0.299 * bgra[i + 2]
-      const value = gray < 150 ? 255 : 0
-      bgra[i] = value
-      bgra[i + 1] = value
-      bgra[i + 2] = value
-    }
-    return nativeImage.createFromBitmap(bgra, { width, height }).toPNG()
-  } catch {
-    return png
-  }
-}
-
-function ocrScore(value) {
-  // Letters for names/moves; digits for Lv and PP.
-  return (value.match(/[A-Za-z]/g) || []).length + (value.match(/\d/g) || []).length
-}
-
-async function recognize(png, { line = false } = {}) {
-  if (!reader) {
-    const { createWorker } = require("tesseract.js")
-    reader = createWorker("eng", 1, {
-      cachePath: path.join(app.getPath("userData"), "tesseract"),
-    })
-      .then(async (worker) => {
-        await worker.setParameters({ tessedit_pageseg_mode: "6" })
-        return worker
-      })
-      .catch((error) => {
-        reader = null
-        throw error
-      })
-  }
-  const worker = await reader
-  const boosted = boostForOcr(png)
-  // 7 = nameplate line. 6/4 = summary panels (sparse / single column).
-  const modes = line ? ["7"] : ["6", "4"]
-  let best = ""
-  let bestScore = -1
-  for (const mode of modes) {
-    await worker.setParameters({
-      tessedit_pageseg_mode: mode,
-      tessedit_char_whitelist:
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789./:'- ♂♀",
-    })
-    for (const image of [boosted, png]) {
-      const result = await worker.recognize(image)
-      const text = result.data.text || ""
-      const score = ocrScore(text)
-      if (score > bestScore) {
-        best = text
-        bestScore = score
-      }
-    }
-  }
-  // Clear whitelist so later calls are not stuck filtered.
-  await worker.setParameters({ tessedit_char_whitelist: "" })
-  return best
-}
-
-async function captureRegion(region) {
-  const display = screen.getDisplayMatching(region)
-  const sources = await desktopCapturer.getSources({
-    types: ["screen"],
-    thumbnailSize: {
-      width: Math.round(display.size.width * display.scaleFactor),
-      height: Math.round(display.size.height * display.scaleFactor),
-    },
-  })
-  const source = sources.find((item) => item.display_id === String(display.id)) || sources[0]
-  if (!source) return ""
-  const image = source.thumbnail
-  const size = image.getSize()
-  if (!size.width || !size.height) return ""
-  const scaleX = size.width / display.bounds.width
-  const scaleY = size.height / display.bounds.height
-  const x = Math.max(0, Math.min(size.width - 1, Math.round((region.x - display.bounds.x) * scaleX)))
-  const y = Math.max(0, Math.min(size.height - 1, Math.round((region.y - display.bounds.y) * scaleY)))
-  const cropped = image.crop({
-    x,
-    y,
-    width: Math.max(1, Math.min(size.width - x, Math.round(region.width * scaleX))),
-    height: Math.max(1, Math.min(size.height - y, Math.round(region.height * scaleY))),
-  })
-  const croppedSize = cropped.getSize()
-  // Small foe name boxes need a bigger upscale for Tesseract.
-  const short = croppedSize.height > 0 && croppedSize.height <= 80
-  const zoom = short ? 5 : 3
-  const scaled = cropped.resize({
-    width: Math.max(1, croppedSize.width * zoom),
-    height: Math.max(1, croppedSize.height * zoom),
-    quality: "best",
-  })
-  return recognize(scaled.toPNG(), { line: short })
 }
 
 ipcMain.handle("pick-region", () => pickRegion())
