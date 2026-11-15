@@ -6,7 +6,7 @@ import { hydrateFight, useFight } from "@/lib/store"
 import { CatalogProvider } from "@/components/catalog-context"
 import { FightView } from "@/components/fight-view"
 import { MoveBook } from "@/components/move-book"
-import { canFloat, openCoachWindow } from "@/components/overlay"
+import { canFloat, FLOAT_NEEDS_BROWSER, openCoachWindow } from "@/components/overlay"
 import { TeamView } from "@/components/team-view"
 import { TypeLab } from "@/components/type-lab"
 import { Button } from "@/components/ui/button"
@@ -48,8 +48,12 @@ export function SlateApp() {
       setFloatNote("Chrome and Edge can float this panel on top of the game. In this browser, drag the window to the side of Pokémon Revolution Online and narrow it.")
       return
     }
-    const opened = await openCoachWindow(catalog)
-    setFloatNote(opened ? "The coach is floating. Drag it over the game window." : "The browser did not open the floating window.")
+    try {
+      const opened = await openCoachWindow(catalog)
+      setFloatNote(opened ? "The coach is floating. Drag it over the game window." : FLOAT_NEEDS_BROWSER)
+    } catch {
+      setFloatNote(FLOAT_NEEDS_BROWSER)
+    }
   }
 
   if (!ready || !catalog) {

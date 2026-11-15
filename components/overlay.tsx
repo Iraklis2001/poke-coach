@@ -11,18 +11,26 @@ type PictureInPicture = {
 
 let current: { window: Window; root: Root } | null = null
 
+export const FLOAT_NEEDS_BROWSER =
+  "This window cannot float on top of the game. Open Slate in Chrome or Edge as a normal tab, press Float over the game, and drag that panel over Pokémon Revolution Online. You can keep using this page beside the client."
+
 export function canFloat() {
   return typeof window !== "undefined" && "documentPictureInPicture" in window
 }
 
-export async function openCoachWindow(catalog: IndexedCatalog) {
+export async function openCoachWindow(catalog: IndexedCatalog): Promise<boolean> {
   const pip = (window as Window & { documentPictureInPicture?: PictureInPicture }).documentPictureInPicture
   if (!pip) return false
   if (current && !current.window.closed) {
     current.window.focus()
     return true
   }
-  const child = await pip.requestWindow({ width: 400, height: 780 })
+  let child: Window
+  try {
+    child = await pip.requestWindow({ width: 400, height: 780 })
+  } catch {
+    return false
+  }
   const base = child.document.createElement("base")
   base.href = document.baseURI
   child.document.head.appendChild(base)
