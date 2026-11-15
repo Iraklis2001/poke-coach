@@ -108,7 +108,6 @@ const moves = Dex.moves
         move.id === "hiddenpower"
           ? "On Revolution Online this is always 60 power and special. The type comes from IVs and is never Normal or Fairy. Read it in the summary."
           : move.shortDesc || "",
-      flags,
       status: move.status || undefined,
       volatile: move.volatileStatus || undefined,
       chance: rider?.chance || undefined,
@@ -132,6 +131,7 @@ const moves = Dex.moves
         move.ignoreImmunity && move.ignoreImmunity !== false ? move.ignoreImmunity : undefined,
       target: move.target,
     })
+    entry.flags = flags
     return entry
   })
   .sort((a, b) => a.name.localeCompare(b.name))

@@ -29,6 +29,7 @@ export function fillSlotFromSummary(
     moves: CatalogMove[]
     abilities: CatalogAbility[]
     natures: CatalogNature[]
+    learnsets?: Record<string, string[]>
   },
 ): Partial<Slot> | null {
   const folded = fold(text)
@@ -39,11 +40,8 @@ export function fillSlotFromSummary(
 
   const nature = findNamedInText(folded, catalog.natures)
   const ability = findNamedInText(folded, catalog.abilities) ?? species.abilities[0] ?? null
-  const moves: MoveChoice[] = []
-  for (const move of findAllNamedInOrder(text, catalog.moves)) {
-    if (!moves.some((entry) => entry.id === move.id)) moves.push({ id: move.id })
-    if (moves.length >= 4) break
-  }
+  const learnset = catalog.learnsets?.[species.id] ?? null
+  const moves = pickMoves(text, catalog.moves, learnset)
 
   const levelMatch = text.replace(/\s+/g, " ").match(/lv\.?\s*(\d{1,3})/i)
   const level = levelMatch ? Number(levelMatch[1]) : null
@@ -57,6 +55,68 @@ export function fillSlotFromSummary(
     stats: null,
     ...(level != null && level > 0 && level <= 100 ? { level } : {}),
   }
+}
+
+function pickMoves(text: string, moves: CatalogMove[], learnset: string[] | null): MoveChoice[] {
+  const allowed = learnset ? new Set(learnset) : null
+  const pool = allowed ? moves.filter((move) => allowed.has(move.id)) : moves
+
+  // Prefer the section after the word "Moves", where the four attacks usually sit.
+  const movesAt = text.search(/\bmoves?\b/i)
+  const focus = movesAt >= 0 ? text.slice(movesAt) : text
+
+  const fromLines = movesFromPpLines(focus, pool)
+  if (fromLines.length >= 4) return fromLines.slice(0, 4)
+
+  const fromScan = findAllNamedInOrder(focus, pool)
+  const merged: MoveChoice[] = []
+  for (const move of [...fromLines, ...fromScan]) {
+    if (!merged.some((entry) => entry.id === move.id)) merged.push({ id: move.id })
+    if (merged.length >= 4) break
+  }
+  if (merged.length >= 2 || !allowed) return merged
+
+  // Last resort: scan the whole summary with the learnset pool.
+  for (const move of findAllNamedInOrder(text, pool)) {
+    if (!merged.some((entry) => entry.id === move.id)) merged.push({ id: move.id })
+    if (merged.length >= 4) break
+  }
+  return merged
+}
+
+function movesFromPpLines(text: string, pool: CatalogMove[]): MoveChoice[] {
+  const found: MoveChoice[] = []
+  const lines = text.split(/\r?\n/).map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean)
+  for (const line of lines) {
+    // "Thunderbolt 15/15", "Thunderbolt 15015", "Thunder Wave 20 20"
+    const match =
+      line.match(/^([A-Za-z][A-Za-z.'’\- ]{1,24}?)\s+(\d{1,2}\s*\/\s*\d{1,2}|\d{3,4})\b/) ||
+      line.match(/^([A-Za-z][A-Za-z.'’\- ]{1,24}?)\s+\d/)
+    const raw = (match?.[1] ?? "").replace(/\s+/g, " ").trim()
+    if (!raw || raw.split(" ").length > 4) continue
+    if (/^(moves?|ability|nature|ot|exp|current|till|atk|def|spd|spatk|spdef|hp|lv)\b/i.test(raw)) continue
+    const move = matchNamedLoose(raw, pool)
+    if (!move) continue
+    if (found.some((entry) => entry.id === move.id)) continue
+    found.push({ id: move.id })
+    if (found.length >= 4) break
+  }
+  return found
+}
+
+function matchNamedLoose(raw: string, entries: CatalogMove[]): CatalogMove | null {
+  const folded = fold(raw)
+  if (!folded) return null
+  const exact = entries.find((entry) => fold(entry.name) === folded)
+  if (exact) return exact
+  // OCR often drops spaces or trailing letters: "ThunderWve", "DragonPulse"
+  const close = entries.filter((entry) => {
+    const name = fold(entry.name)
+    return name.startsWith(folded) || folded.startsWith(name) || (folded.length >= 5 && name.includes(folded))
+  })
+  if (close.length === 1) return close[0]
+  close.sort((a, b) => fold(a.name).length - fold(b.name).length)
+  return close[0] ?? null
 }
 
 function findNamedInText<T extends { id: string; name: string }>(foldedText: string, entries: T[]): T | null {
@@ -88,8 +148,6 @@ function findAllNamedInOrder<T extends { id: string; name: string }>(text: strin
       from = start + 1
     }
   }
-  // Longer names claim a range first so "Thunder" inside "Thunderbolt" is ignored,
-  // while a later standalone "Thunder" still counts.
   hits.sort((a, b) => b.end - b.start - (a.end - a.start) || a.start - b.start)
   const claimed: { start: number; end: number }[] = []
   const accepted: { start: number; entry: T }[] = []

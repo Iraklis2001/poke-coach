@@ -19,12 +19,16 @@ const catalog = {
     { id: "thunderwave", name: "Thunder Wave", type: "Electric", category: "Status" as const, bp: 0, acc: 90, pp: 20, priority: 0, desc: "", flags: [] },
     { id: "thunder", name: "Thunder", type: "Electric", category: "Special" as const, bp: 110, acc: 70, pp: 10, priority: 0, desc: "", flags: [] },
     { id: "dragonpulse", name: "Dragon Pulse", type: "Dragon", category: "Special" as const, bp: 85, acc: 100, pp: 10, priority: 0, desc: "", flags: [] },
+    { id: "tackle", name: "Tackle", type: "Normal", category: "Physical" as const, bp: 40, acc: 100, pp: 35, priority: 0, desc: "", flags: [] },
   ],
   abilities: [{ id: "static", name: "Static", desc: "" }],
   natures: [{ id: "calm", name: "Calm", plus: "spd" as const, minus: "atk" as const }],
+  learnsets: {
+    ampharos: ["thunderbolt", "thunderwave", "thunder", "dragonpulse", "cottonspore"],
+  },
 }
 
-test("messy OCR from the Ampharos summary still fills the slot", () => {
+test("messy OCR from the Ampharos summary still fills four moves", () => {
   const slot = fillSlotFromSummary(
     `Ampharos Liss so 1 Sss1s47s x
 Ex Nature, - r.
@@ -40,10 +44,8 @@ Dragon Pulse wo He 03.051`,
   assert.equal(slot?.speciesId, "ampharos")
   assert.equal(slot?.natureId, "calm")
   assert.ok(slot?.moves)
-  assert.deepEqual(
-    slot.moves.map((move) => move.id),
-    ["thunderbolt", "thunderwave", "thunder", "dragonpulse"],
-  )
+  assert.deepEqual(new Set(slot.moves.map((move) => move.id)), new Set(["thunderbolt", "thunderwave", "thunder", "dragonpulse"]))
+  assert.equal(slot.moves.length, 4)
 })
 
 test("clean Ampharos summary still fills the slot", () => {

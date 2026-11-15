@@ -31,7 +31,7 @@ export function resolveFighter(slot: Slot, catalog: IndexedCatalog, hpPercent: n
   for (const choice of slot.moves) {
     const move = catalog.moveById.get(choice.id)
     if (!move) continue
-    moves.push(move)
+    moves.push({ ...move, flags: move.flags ?? [] })
     if (choice.id === "hiddenpower" && choice.hiddenPower && TYPE_SET.has(choice.hiddenPower)) {
       hiddenPower.hiddenpower = choice.hiddenPower as TypeName
     }

@@ -242,23 +242,24 @@ function attackerMods(move: CatalogMove, attacker: Fighter, type: string, power:
     mods.push(1.5)
     notes.push("Technician boosts this because its power is 60 or less.")
   }
-  if (ability === "toughclaws" && move.flags.includes("contact")) {
+  const flags = move.flags ?? []
+  if (ability === "toughclaws" && flags.includes("contact")) {
     mods.push(1.3)
     notes.push("Tough Claws boosts contact moves.")
   }
-  if (ability === "ironfist" && move.flags.includes("punch")) {
+  if (ability === "ironfist" && flags.includes("punch")) {
     mods.push(1.2)
     notes.push("Iron Fist boosts punch moves.")
   }
-  if (ability === "strongjaw" && move.flags.includes("bite")) {
+  if (ability === "strongjaw" && flags.includes("bite")) {
     mods.push(1.5)
     notes.push("Strong Jaw boosts bite moves.")
   }
-  if (ability === "megalauncher" && move.flags.includes("pulse")) {
+  if (ability === "megalauncher" && flags.includes("pulse")) {
     mods.push(1.5)
     notes.push("Mega Launcher boosts pulse moves.")
   }
-  if (ability === "sharpness" && move.flags.includes("slicing")) {
+  if (ability === "sharpness" && flags.includes("slicing")) {
     mods.push(1.5)
     notes.push("Sharpness boosts slicing moves.")
   }
@@ -306,7 +307,7 @@ function defenderMods(type: string, move: CatalogMove, defender: Fighter, typeFa
     mods.push(2)
     notes.push("Fluffy doubles Fire damage.")
   }
-  if (ability === "fluffy" && move.flags.includes("contact")) {
+  if (ability === "fluffy" && (move.flags ?? []).includes("contact")) {
     mods.push(0.5)
     notes.push("Fluffy halves moves that make contact.")
   }
@@ -354,7 +355,8 @@ function targetsFoe(move: CatalogMove) {
 function statusBlocked(move: CatalogMove, you: Fighter, foe: Fighter) {
   if (!targetsFoe(move)) return null
   if (foe.abilityId === "goodasgold") return "Good as Gold ignores status moves."
-  if (move.flags.includes("powder") && (foe.types.includes("Grass") || foe.abilityId === "overcoat")) {
+  const flags = move.flags ?? []
+  if (flags.includes("powder") && (foe.types.includes("Grass") || foe.abilityId === "overcoat")) {
     return foe.types.includes("Grass") ? "Grass types are immune to powder moves." : "Overcoat blocks powder moves."
   }
   const prepared = prepareMove(move, you)
@@ -364,7 +366,7 @@ function statusBlocked(move: CatalogMove, you: Fighter, foe: Fighter) {
     defenderTypes: foe.types,
     defenderAbility: foe.abilityId,
     attackerAbility: you.abilityId,
-    flags: move.flags,
+    flags,
   })
   if (match.factor === 0) return match.notes[0] || match.sentence
   if (move.status === "brn" && foe.types.includes("Fire")) return "Fire types cannot be burned."
@@ -467,7 +469,7 @@ function rateAttack(
     defenderTypes: defender.types,
     defenderAbility: defender.abilityId,
     attackerAbility: attacker.abilityId,
-    flags: move.flags,
+    flags: move.flags ?? [],
   })
   const notes = [...prepared.notes, ...match.notes]
   if (powered.note) notes.push(powered.note)

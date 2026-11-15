@@ -196,7 +196,13 @@ function Hud() {
         setSeen("Nothing was read. Move Slate aside and try again.")
         return
       }
-      const filled = fillSlotFromSummary(result.text, catalog)
+      const filled = fillSlotFromSummary(result.text, {
+        species: catalog.species,
+        moves: catalog.moves,
+        abilities: catalog.abilities,
+        natures: catalog.natures,
+        learnsets: catalog.learnsets,
+      })
       if (!filled) {
         setSeen("No Pokémon name found. Cover the whole summary, including the name.")
         return
