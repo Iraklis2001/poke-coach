@@ -12,7 +12,7 @@ It explains the type chart, including the server's Shadow type, and it ranks the
 4. When a fight starts, search the Pokémon in front of you.
 5. If the summary window is open, type the six stats in. The size of the hit stops being a guess.
 6. Hidden Power on this server is not a Normal move. Set the type the summary shows. It is never Normal or Fairy, and the power is 60.
-7. On your computer, `npm run overlay` opens the small window above the game. Drag the top bar (⠿) to move it. **Play** lets clicks reach the game; Alt+Shift+S unlocks the window again. **More** / **Less** show or hide the move list. − / + change how clear the window is. The corner marks park it top-left or top-right. Press **Watch**, then drag a box around the battle lines. **Box** draws that area again.
+7. On your computer, `npm run overlay` opens the small window above the game. Drag the top bar (⠿) to move it. **Through** lets clicks reach the game; hover the window or press **Unlock** to use it again. **More** / **Less** show or hide the move list. − / + change how clear it is. **TL** / **TR** park it in a corner. Press **Watch**, then drag a box around the battle lines. **Box** draws that area again.
 
 Weather buttons cover sun, rain, and sand. Health sliders cover a hurt Pokémon. Abilities such as Levitate, Flash Fire, and Water Absorb are included when you set them.
 

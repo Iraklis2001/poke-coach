@@ -141,6 +141,12 @@ html.hud-root body {
   background: transparent !important;
 }
 
+html.hud-root nextjs-portal,
+html.hud-root [data-next-badge-root],
+html.hud-root [data-nextjs-toast] {
+  display: none !important;
+}
+
 .hud-drag {
   -webkit-app-region: drag;
 }

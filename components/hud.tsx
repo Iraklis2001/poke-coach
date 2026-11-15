@@ -79,17 +79,20 @@ function Hud() {
   const [watching, setWatching] = useState(false)
   const [boxTick, setBoxTick] = useState(0)
   const [seen, setSeen] = useState("")
-  const [passThrough, setPassThrough] = useState(false)
+  const [through, setThrough] = useState(false)
+  const throughRef = useRef(false)
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS)
   const fightRef = useRef(fight)
   const catalogRef = useRef(catalog)
   fightRef.current = fight
   catalogRef.current = catalog
+  throughRef.current = through
   const matches = query.trim() ? searchSpecies(catalog, query, 6) : []
 
   useEffect(() => {
     if (window.slate?.readRegion) setDesktop(true)
     setPrefs(loadPrefs())
+    window.slate?.setClickThrough(false)
   }, [])
 
   useEffect(() => {
@@ -100,9 +103,24 @@ function Hud() {
   }, [desktop, prefs])
 
   useEffect(() => {
-    if (!window.slate?.onClickThrough) return
-    return window.slate.onClickThrough(setPassThrough)
-  }, [])
+    if (!desktop || !window.slate) return
+    if (!through) {
+      window.slate.setClickThrough(false)
+      return
+    }
+    window.slate.setClickThrough(true)
+    const onMove = (event: MouseEvent) => {
+      if (!throughRef.current) return
+      const hit = document.elementFromPoint(event.clientX, event.clientY)
+      const overPanel = Boolean(hit?.closest("[data-catch]"))
+      window.slate?.setClickThrough(!overPanel)
+    }
+    window.addEventListener("mousemove", onMove)
+    return () => {
+      window.removeEventListener("mousemove", onMove)
+      window.slate?.setClickThrough(false)
+    }
+  }, [desktop, through])
 
   useEffect(() => {
     if (!watching || !window.slate?.readRegion) return
@@ -180,24 +198,31 @@ function Hud() {
   }
 
   return (
-    <div className="p-2">
+    <div className="p-2" data-catch>
       <Window>
         <TitleBar
           title={foe?.name ?? "Wild Pokémon"}
           level={foe ? `Lv ${foe.level}` : ""}
           compact={prefs.compact}
-          passThrough={passThrough}
+          through={through}
           desktop={desktop}
           onClose={desktop ? () => window.slate?.close() : undefined}
           onToggleCompact={() => patchPrefs({ compact: !prefs.compact })}
-          onTogglePassThrough={() => window.slate?.setClickThrough(!passThrough)}
+          onToggleThrough={() => setThrough((current) => !current)}
           onOpacity={(delta) => patchPrefs({ opacity: Math.min(1, Math.max(0.5, prefs.opacity + delta)) })}
           onSnap={(corner) => window.slate?.snap?.(corner)}
         />
 
-        {passThrough ? (
-          <div className="hud-nodrag border-t border-[#12161a] bg-[#1f252b] px-3 py-2 text-[12px] text-[#f0d36a]">
-            Clicks go to the game. Alt+Shift+S unlocks the window.
+        {through ? (
+          <div className="hud-nodrag flex items-center gap-2 border-t border-[#12161a] bg-[#1f252b] px-3 py-2">
+            <p className="min-w-0 flex-1 text-[12px] text-[#f0d36a]">Hover here to use the window.</p>
+            <button
+              type="button"
+              className="border border-[#12161a] bg-[#3a424c] px-2 py-1 text-[12px] text-white"
+              onClick={() => setThrough(false)}
+            >
+              Unlock
+            </button>
           </div>
         ) : null}
 
@@ -383,22 +408,22 @@ function TitleBar({
   title,
   level,
   compact,
-  passThrough,
+  through,
   desktop,
   onClose,
   onToggleCompact,
-  onTogglePassThrough,
+  onToggleThrough,
   onOpacity,
   onSnap,
 }: {
   title: string
   level?: string
   compact: boolean
-  passThrough: boolean
+  through: boolean
   desktop: boolean
   onClose?: () => void
   onToggleCompact: () => void
-  onTogglePassThrough: () => void
+  onToggleThrough: () => void
   onOpacity: (delta: number) => void
   onSnap: (corner: "tl" | "tr" | "bl" | "br") => void
 }) {
@@ -419,11 +444,11 @@ function TitleBar({
           </button>
           <button
             type="button"
-            className={cn("px-1 text-[11px] hover:text-white", passThrough ? "text-[#f0d36a]" : "text-[#d5dde4]")}
-            title="Clicks go through to the game (Alt+Shift+S)"
-            onClick={onTogglePassThrough}
+            className={cn("px-1 text-[11px] hover:text-white", through ? "text-[#f0d36a]" : "text-[#d5dde4]")}
+            title="Let clicks reach the game. Hover the window again to use it."
+            onClick={onToggleThrough}
           >
-            Play
+            {through ? "Unlock" : "Through"}
           </button>
           <button type="button" className="px-1 text-[11px] text-[#d5dde4] hover:text-white" title={compact ? "Show moves" : "Hide moves"} onClick={onToggleCompact}>
             {compact ? "More" : "Less"}

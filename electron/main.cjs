@@ -102,11 +102,13 @@ function createWindow() {
 
   win.on("moved", saveBounds)
   win.on("resized", saveBounds)
+  win.on("focus", () => setPassThrough(false))
   win.on("closed", () => {
     overlay = null
     globalShortcut.unregister("Alt+Shift+S")
   })
 
+  setPassThrough(false)
   win.loadURL(START_URL)
 }
 
