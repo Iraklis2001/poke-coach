@@ -66,6 +66,7 @@ function createWindow() {
   ipcMain.removeAllListeners("close")
   ipcMain.removeAllListeners("set-compact")
   ipcMain.removeAllListeners("snap")
+  ipcMain.removeAllListeners("share-visible")
   ipcMain.on("click-through", (_event, on) => setPassThrough(Boolean(on)))
   ipcMain.on("opacity", (_event, value) => {
     const next = Math.min(1, Math.max(0.5, Number(value) || 1))
@@ -80,6 +81,10 @@ function createWindow() {
     if (compact) win.setSize(420, 240, true)
     else win.setSize(Math.max(bounds.width, 480), Math.max(bounds.height, 520), true)
     saveBounds()
+  })
+  // shareVisible true = Discord/friends can see the overlay (content protection off)
+  ipcMain.on("share-visible", (_event, shareVisible) => {
+    if (!win.isDestroyed()) win.setContentProtection(!Boolean(shareVisible))
   })
   ipcMain.on("snap", (_event, corner) => {
     const display = screen.getDisplayMatching(win.getBounds())

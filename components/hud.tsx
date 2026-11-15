@@ -17,9 +17,11 @@ const PREFS_KEY = "slate-overlay-prefs"
 type Prefs = {
   compact: boolean
   opacity: number
+  /** When true, Discord screen share can see the overlay. */
+  shareVisible: boolean
 }
 
-const DEFAULT_PREFS: Prefs = { compact: true, opacity: 0.95 }
+const DEFAULT_PREFS: Prefs = { compact: true, opacity: 0.95, shareVisible: false }
 
 export function HudApp() {
   const { ready } = useFight()
@@ -101,6 +103,7 @@ function Hud() {
     if (!desktop || !window.slate) return
     window.slate.setOpacity(prefs.opacity)
     window.slate.setCompact?.(prefs.compact)
+    window.slate.setShareVisible?.(prefs.shareVisible)
     window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs))
   }, [desktop, prefs])
 
@@ -235,8 +238,10 @@ function Hud() {
             title={foe?.name ?? "Wild Pokémon"}
             level={foe ? `Lv ${foe.level}` : ""}
             compact={prefs.compact}
+            shareVisible={prefs.shareVisible}
             onClose={desktop ? () => window.slate?.close() : undefined}
             onToggleCompact={() => patchPrefs({ compact: !prefs.compact })}
+            onToggleShare={desktop ? () => patchPrefs({ shareVisible: !prefs.shareVisible }) : undefined}
           />
 
           <div className="hud-nodrag px-3 py-3">
@@ -372,6 +377,7 @@ function loadPrefs(): Prefs {
     return {
       compact: parsed.compact ?? DEFAULT_PREFS.compact,
       opacity: Math.min(1, Math.max(0.5, parsed.opacity ?? DEFAULT_PREFS.opacity)),
+      shareVisible: parsed.shareVisible ?? DEFAULT_PREFS.shareVisible,
     }
   } catch {
     return DEFAULT_PREFS
@@ -602,20 +608,41 @@ function TitleBar({
   title,
   level,
   compact,
+  shareVisible,
   onClose,
   onToggleCompact,
+  onToggleShare,
 }: {
   title: string
   level?: string
   compact: boolean
+  shareVisible: boolean
   onClose?: () => void
   onToggleCompact: () => void
+  onToggleShare?: () => void
 }) {
   return (
     <header className="hud-drag flex items-center gap-2 border-b-2 border-black bg-[#e3350d] px-3 py-1.5" title="Drag to move">
       <p className="min-w-0 flex-1 truncate text-[13px] font-bold text-white">{title}</p>
       {level ? <p className="text-[12px] font-bold text-white">{level}</p> : null}
       <div className="hud-nodrag flex items-center gap-2">
+        {onToggleShare ? (
+          <button
+            type="button"
+            className={cn(
+              "text-[11px] font-bold hover:text-yellow-200",
+              shareVisible ? "text-yellow-200" : "text-white",
+            )}
+            title={
+              shareVisible
+                ? "Friends can see Slate on Discord. Click to hide it from screen share."
+                : "Slate is hidden from Discord. Click so friends can see it."
+            }
+            onClick={onToggleShare}
+          >
+            {shareVisible ? "Sharing" : "Share"}
+          </button>
+        ) : null}
         <button type="button" className="text-[11px] font-bold text-white hover:text-yellow-200" onClick={onToggleCompact}>
           {compact ? "More" : "Less"}
         </button>
@@ -639,6 +666,7 @@ declare global {
       pickRegion?: () => Promise<{ x: number; y: number; width: number; height: number } | null>
       readRegion?: (region: { x: number; y: number; width: number; height: number }) => Promise<{ text: string; error?: string }>
       setCompact?: (compact: boolean) => void
+      setShareVisible?: (shareVisible: boolean) => void
       snap?: (corner: "tl" | "tr" | "bl" | "br") => void
     }
   }

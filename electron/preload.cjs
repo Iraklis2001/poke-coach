@@ -24,6 +24,9 @@ contextBridge.exposeInMainWorld("slate", {
   setCompact(compact) {
     ipcRenderer.send("set-compact", Boolean(compact))
   },
+  setShareVisible(shareVisible) {
+    ipcRenderer.send("share-visible", Boolean(shareVisible))
+  },
   snap(corner) {
     ipcRenderer.send("snap", corner)
   },

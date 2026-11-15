@@ -16,6 +16,7 @@ It explains the type chart, including the server's Shadow type, and it ranks the
    - **1. My Pokémon** — click a slot, open that Pokémon’s summary, press the button, drag over the whole summary.
    - **2. The fight** — drag around the battle lines. Press again to stop.
    - **Edit moves** — if OCR misses a move, click it next to your Pokémon’s name, type the real move, and pick it from the list.
+   - **Share** (title bar) — turn on so Discord screen share shows Slate to friends. Turn off again when you’re done.
    The call says which Pokémon to send and which move to click.
 
 Weather buttons cover sun, rain, and sand. Health sliders cover a hurt Pokémon. Abilities such as Levitate, Flash Fire, and Water Absorb are included when you set them.
