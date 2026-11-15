@@ -5,7 +5,7 @@ import { fetchCatalog, searchMoves, searchSpecies, type IndexedCatalog } from "@
 import { advise } from "@/lib/advise"
 import { resolveFighter } from "@/lib/resolve"
 import { hydrateFight, patchFoe, patchSlot, setActive, useFight } from "@/lib/store"
-import { matchSpeciesName, readNameplate } from "@/lib/battle-text"
+import { matchNameplateSpecies } from "@/lib/battle-text"
 import { fillSlotFromSummary } from "@/lib/summary-text"
 import { CatalogProvider, useCatalog } from "@/components/catalog-context"
 import type { Slot } from "@/lib/types"
@@ -116,7 +116,8 @@ function Hud() {
       return
     }
     let stopped = false
-    let lastFoeId: string | null = fightRef.current.foe.speciesId || null
+    // Only track foes we actually read from this box — not a typed search like Politoed.
+    let lastFoeId: string | null = null
     let emptyTicks = 0
 
     async function look() {
@@ -127,23 +128,27 @@ function Hud() {
           setSeen(result.error)
           return
         }
-        const read = readNameplate(result.text)
-        const names = catalogRef.current.species
-        const foundFoe = read.foe ? matchSpeciesName(read.foe, names) : null
+        const hit = matchNameplateSpecies(result.text, catalogRef.current.species)
+        const rawPreview = result.text.replace(/\s+/g, " ").trim().slice(0, 40)
 
-        if (!foundFoe) {
+        if (!hit) {
           emptyTicks += 1
-          if (lastFoeId && emptyTicks >= 2) {
+          if (lastFoeId && emptyTicks >= 3) {
             const prev = catalogRef.current.speciesById.get(lastFoeId)?.name ?? "Foe"
             setSeen(`${prev} fainted — waiting for the next Pokémon…`)
-          } else if (result.text.trim()) {
-            setSeen("Cover only the foe name + Lv box (top left).")
+          } else {
+            setSeen(
+              rawPreview
+                ? `Saw “${rawPreview}” — redraw a tight box on the foe name + Lv.`
+                : "Empty read — redraw a tight box on the foe name + Lv.",
+            )
           }
           return
         }
 
         emptyTicks = 0
-        const levelPatch = read.level ? { level: read.level } : {}
+        const foundFoe = hit.species
+        const levelPatch = hit.level ? { level: hit.level } : {}
         if (foundFoe.id !== fightRef.current.foe.speciesId) {
           const prevName = lastFoeId ? catalogRef.current.speciesById.get(lastFoeId)?.name : null
           patchFoe({
@@ -157,13 +162,13 @@ function Hud() {
           lastFoeId = foundFoe.id
           setSeen(
             prevName && prevName !== foundFoe.name
-              ? `${prevName} fainted · next: ${foundFoe.name}${read.level ? ` Lv ${read.level}` : ""}`
-              : `Foe: ${foundFoe.name}${read.level ? ` Lv ${read.level}` : ""}`,
+              ? `${prevName} fainted · next: ${foundFoe.name}${hit.level ? ` Lv ${hit.level}` : ""}`
+              : `Foe: ${foundFoe.name}${hit.level ? ` Lv ${hit.level}` : ""}`,
           )
         } else {
           lastFoeId = foundFoe.id
-          if (read.level && read.level !== fightRef.current.foe.level) patchFoe({ level: read.level })
-          setSeen(`Foe: ${foundFoe.name}${read.level ? ` Lv ${read.level}` : ""}`)
+          if (hit.level && hit.level !== fightRef.current.foe.level) patchFoe({ level: hit.level })
+          setSeen(`Foe: ${foundFoe.name}${hit.level ? ` Lv ${hit.level}` : ""}`)
         }
       } catch {
         if (!stopped) setSeen("The foe name box could not be read.")

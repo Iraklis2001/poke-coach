@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { matchSpeciesName, readBattleText, readNameplate } from "./battle-text"
+import { matchNameplateSpecies, matchSpeciesName, readBattleText, readNameplate } from "./battle-text"
 
 const NAMES = [
   { id: "krabby", name: "Krabby" },
@@ -64,6 +64,17 @@ test("messy nameplate OCR still keeps the name before Lv", () => {
   const read = readNameplate("Tentacool\nLv 34")
   assert.equal(read.foe, "Tentacool")
   assert.equal(read.level, 34)
+})
+
+test("typo nameplate still matches Tentacool in the catalog", () => {
+  const hit = matchNameplateSpecies("Tentacoo1 Lv. 34", NAMES)
+  assert.equal(hit?.species.id, "tentacool")
+  assert.equal(hit?.level, 34)
+})
+
+test("nameplate match scans the whole OCR blob", () => {
+  const hit = matchNameplateSpecies("34 Tentacool male", NAMES)
+  assert.equal(hit?.species.id, "tentacool")
 })
 
 test("battle log marks a faint so the next send-out can replace the foe", () => {

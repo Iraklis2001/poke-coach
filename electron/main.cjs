@@ -216,7 +216,7 @@ function boostForOcr(png) {
   }
 }
 
-async function recognize(png) {
+async function recognize(png, { line = false } = {}) {
   if (!reader) {
     const { createWorker } = require("tesseract.js")
     reader = createWorker("eng", 1, {
@@ -232,13 +232,16 @@ async function recognize(png) {
       })
   }
   const worker = await reader
+  // 7 = single text line (foe nameplate). 6 = sparse text (summaries).
+  await worker.setParameters({ tessedit_pageseg_mode: line ? "7" : "6" })
   const boosted = boostForOcr(png)
   const first = await worker.recognize(boosted)
   let text = first.data.text || ""
-  if ((text.match(/[A-Za-z]{4,}/g) || []).length < 8) {
-    const second = await worker.recognize(png)
-    if ((second.data.text || "").length > text.length) text = second.data.text || text
-  }
+  const second = await worker.recognize(png)
+  const alt = second.data.text || ""
+  // Prefer the pass with more letters — nameplates are short, so length alone is weak.
+  const score = (value) => (value.match(/[A-Za-z]/g) || []).length
+  if (score(alt) > score(text)) text = alt
   return text
 }
 
@@ -267,12 +270,15 @@ async function captureRegion(region) {
     height: Math.max(1, Math.min(size.height - y, Math.round(region.height * scaleY))),
   })
   const croppedSize = cropped.getSize()
+  // Small foe name boxes need a bigger upscale for Tesseract.
+  const short = croppedSize.height > 0 && croppedSize.height <= 80
+  const zoom = short ? 5 : 3
   const scaled = cropped.resize({
-    width: Math.max(1, croppedSize.width * 3),
-    height: Math.max(1, croppedSize.height * 3),
+    width: Math.max(1, croppedSize.width * zoom),
+    height: Math.max(1, croppedSize.height * zoom),
     quality: "best",
   })
-  return recognize(scaled.toPNG())
+  return recognize(scaled.toPNG(), { line: short })
 }
 
 ipcMain.handle("pick-region", () => pickRegion())
