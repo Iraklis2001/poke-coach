@@ -5,13 +5,14 @@ import { fetchCatalog, searchMoves, searchSpecies, type IndexedCatalog } from "@
 import { advise } from "@/lib/advise"
 import { resolveFighter } from "@/lib/resolve"
 import { hydrateFight, patchFoe, patchSlot, setActive, useFight } from "@/lib/store"
-import { matchSpeciesName, readBattleText } from "@/lib/battle-text"
+import { matchSpeciesName, readNameplate } from "@/lib/battle-text"
 import { fillSlotFromSummary } from "@/lib/summary-text"
 import { CatalogProvider, useCatalog } from "@/components/catalog-context"
 import type { Slot } from "@/lib/types"
 import { cn } from "cn"
 
-const BOX_KEY = "slate-battle-box"
+/** Screen region over the foe nameplate (name + Lv), top-left of the battle. */
+const FOE_BOX_KEY = "slate-foe-box"
 const PREFS_KEY = "slate-overlay-prefs"
 
 type Prefs = {
@@ -106,7 +107,7 @@ function Hud() {
 
   useEffect(() => {
     if (!watching || !window.slate?.readRegion) return
-    const raw = window.localStorage.getItem(BOX_KEY)
+    const raw = window.localStorage.getItem(FOE_BOX_KEY)
     if (!raw) return
     let box: { x: number; y: number; width: number; height: number }
     try {
@@ -115,6 +116,8 @@ function Hud() {
       return
     }
     let stopped = false
+    let lastFoeId: string | null = fightRef.current.foe.speciesId || null
+    let emptyTicks = 0
 
     async function look() {
       try {
@@ -124,38 +127,50 @@ function Hud() {
           setSeen(result.error)
           return
         }
-        const read = readBattleText(result.text)
+        const read = readNameplate(result.text)
         const names = catalogRef.current.species
         const foundFoe = read.foe ? matchSpeciesName(read.foe, names) : null
-        const mine = read.you ? matchSpeciesName(read.you, names) : null
-        if (foundFoe && foundFoe.id !== fightRef.current.foe.speciesId) {
+
+        if (!foundFoe) {
+          emptyTicks += 1
+          if (lastFoeId && emptyTicks >= 2) {
+            const prev = catalogRef.current.speciesById.get(lastFoeId)?.name ?? "Foe"
+            setSeen(`${prev} fainted — waiting for the next Pokémon…`)
+          } else if (result.text.trim()) {
+            setSeen("Cover only the foe name + Lv box (top left).")
+          }
+          return
+        }
+
+        emptyTicks = 0
+        const levelPatch = read.level ? { level: read.level } : {}
+        if (foundFoe.id !== fightRef.current.foe.speciesId) {
+          const prevName = lastFoeId ? catalogRef.current.speciesById.get(lastFoeId)?.name : null
           patchFoe({
             speciesId: foundFoe.id,
             abilityId: foundFoe.abilities[0]?.id ?? "",
             moves: [],
             types: null,
             stats: null,
-            ...(read.level ? { level: read.level } : {}),
+            ...levelPatch,
           })
-        } else if (foundFoe && read.level && read.level !== fightRef.current.foe.level) {
-          patchFoe({ level: read.level })
+          lastFoeId = foundFoe.id
+          setSeen(
+            prevName && prevName !== foundFoe.name
+              ? `${prevName} fainted · next: ${foundFoe.name}${read.level ? ` Lv ${read.level}` : ""}`
+              : `Foe: ${foundFoe.name}${read.level ? ` Lv ${read.level}` : ""}`,
+          )
+        } else {
+          lastFoeId = foundFoe.id
+          if (read.level && read.level !== fightRef.current.foe.level) patchFoe({ level: read.level })
+          setSeen(`Foe: ${foundFoe.name}${read.level ? ` Lv ${read.level}` : ""}`)
         }
-        let youLine = ""
-        if (mine) {
-          const index = fightRef.current.party.findIndex((slot) => slot.speciesId === mine.id)
-          if (index >= 0) {
-            setActive(index)
-            youLine = `You: ${mine.name}`
-          } else youLine = `${mine.name} is out, not on your team`
-        }
-        if (foundFoe || youLine) setSeen([youLine, foundFoe ? `Foe: ${foundFoe.name}` : ""].filter(Boolean).join(" · "))
-        else if (result.text.trim()) setSeen("Draw the box around the two battle lines.")
       } catch {
-        if (!stopped) setSeen("The battle text could not be read.")
+        if (!stopped) setSeen("The foe name box could not be read.")
       }
     }
 
-    const timer = window.setInterval(() => void look(), 1500)
+    const timer = window.setInterval(() => void look(), 1200)
     void look()
     return () => {
       stopped = true
@@ -352,8 +367,8 @@ function Hud() {
                 <p className="mt-1 text-[11px] font-bold text-black">
                   {seen ||
                     (watching
-                      ? "Reading the fight text."
-                      : "1 reads the open summary into the red slot. 2 reads the wild Pokémon.")}
+                      ? "Watching the foe name box."
+                      : "1 reads your summary. 2 draws a box on the foe name + Lv (top left).")}
                 </p>
               </div>
             ) : null}
@@ -391,15 +406,15 @@ async function startFightWatch(
   }
   const api = window.slate
   if (!api?.pickRegion || !api.readRegion) return
-  setSeen("Draw a box around “A wild … attacks!” and “Go …!”")
+  setSeen("Draw a tight box around the foe’s name and Lv (top left of the battle).")
   const box = await api.pickRegion()
   if (!box) {
     setSeen("Cancelled.")
     return
   }
-  window.localStorage.setItem(BOX_KEY, JSON.stringify(box))
+  window.localStorage.setItem(FOE_BOX_KEY, JSON.stringify(box))
   setBoxTick((tick) => tick + 1)
-  setSeen("Reading the fight text.")
+  setSeen("Watching the foe name box — it updates when the next Pokémon comes out.")
   setWatching(true)
 }
 

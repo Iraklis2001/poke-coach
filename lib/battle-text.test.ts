@@ -1,12 +1,14 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { matchSpeciesName, readBattleText } from "./battle-text"
+import { matchSpeciesName, readBattleText, readNameplate } from "./battle-text"
 
 const NAMES = [
   { id: "krabby", name: "Krabby" },
   { id: "gengar", name: "Gengar" },
   { id: "mrmime", name: "Mr. Mime" },
   { id: "rattata", name: "Rattata" },
+  { id: "tentacool", name: "Tentacool" },
+  { id: "seadra", name: "Seadra" },
 ]
 
 test("wild attack and go lines name both pokemon", () => {
@@ -49,4 +51,25 @@ test("species names match the pokedex, including punctuation", () => {
   assert.equal(matchSpeciesName("Krabby", NAMES)?.id, "krabby")
   assert.equal(matchSpeciesName("mr mime", NAMES)?.id, "mrmime")
   assert.equal(matchSpeciesName("Magikarp", NAMES), null)
+})
+
+test("foe nameplate reads name and level from the red HUD box", () => {
+  const read = readNameplate("Tentacool ♂ Lv. 34")
+  assert.equal(read.foe, "Tentacool")
+  assert.equal(read.level, 34)
+  assert.equal(matchSpeciesName(read.foe!, NAMES)?.id, "tentacool")
+})
+
+test("messy nameplate OCR still keeps the name before Lv", () => {
+  const read = readNameplate("Tentacool\nLv 34")
+  assert.equal(read.foe, "Tentacool")
+  assert.equal(read.level, 34)
+})
+
+test("battle log marks a faint so the next send-out can replace the foe", () => {
+  const faint = readBattleText("Wild Tentacool fainted!")
+  assert.equal(faint.fainted, true)
+  const next = readBattleText("Youngster Joey sent out Seadra!")
+  assert.equal(next.foe, "Seadra")
+  assert.equal(next.fainted, false)
 })

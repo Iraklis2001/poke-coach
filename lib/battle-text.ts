@@ -4,6 +4,13 @@ export type BattleNames = {
   foe: string | null
   you: string | null
   level: number | null
+  fainted: boolean
+}
+
+/** Foe nameplate in the top-left (name + Lv), not the battle log. */
+export type NameplateRead = {
+  foe: string | null
+  level: number | null
 }
 
 const FOE_PATTERNS = [
@@ -14,11 +21,46 @@ const FOE_PATTERNS = [
 
 const YOU_PATTERNS = [/go[,!]?\s+([a-z][a-z.'’\- ]{1,24}?)(?:!|$)/i]
 
+const FAINT_PATTERNS = [
+  /\bfainted\b/i,
+  /\bwas defeated\b/i,
+  /\bdefeated\b/i,
+]
+
 export function readBattleText(text: string): BattleNames {
   const clean = text.replace(/\s+/g, " ").trim()
   const foe = lastMatch(clean, FOE_PATTERNS)
   const you = lastMatch(clean, YOU_PATTERNS)
-  return { foe, you, level: readLevel(clean, foe) }
+  return { foe, you, level: readLevel(clean, foe), fainted: FAINT_PATTERNS.some((pattern) => pattern.test(clean)) }
+}
+
+/**
+ * Read the foe HUD strip: "Tentacool ♂ Lv. 34".
+ * Trainer battles swap this strip when the next Pokémon comes out.
+ */
+export function readNameplate(text: string): NameplateRead {
+  const clean = text
+    .replace(/[♂♀]/g, " ")
+    .replace(/[|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+  if (!clean) return { foe: null, level: null }
+
+  const levelMatch = clean.match(/\blv\.?\s*(\d{1,3})\b/i)
+  const levelRaw = levelMatch ? Number(levelMatch[1]) : null
+  const level = levelRaw != null && levelRaw > 0 && levelRaw <= 100 ? levelRaw : null
+
+  let before = clean
+  if (levelMatch && levelMatch.index != null) before = clean.slice(0, levelMatch.index)
+  before = before
+    .replace(/^(a\s+)?wild\b/i, "")
+    .replace(/^(foe|enemy|opposing)\b/i, "")
+    .replace(/[^a-zA-Z.'’\- ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+
+  const foe = before ? tidy(before) : null
+  return { foe, level }
 }
 
 function lastMatch(text: string, patterns: RegExp[]) {
