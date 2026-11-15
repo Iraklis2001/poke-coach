@@ -32,10 +32,10 @@ function createWindow() {
   const win = new BrowserWindow({
     x: saved?.x,
     y: saved?.y,
-    width: compact ? 280 : saved?.width || 320,
-    height: compact ? 180 : saved?.height || 360,
-    minWidth: 220,
-    minHeight: 120,
+    width: compact ? 420 : saved?.width || 480,
+    height: compact ? 240 : saved?.height || 520,
+    minWidth: 360,
+    minHeight: 180,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -77,8 +77,8 @@ function createWindow() {
   ipcMain.on("set-compact", (_event, next) => {
     compact = Boolean(next)
     const bounds = win.getBounds()
-    if (compact) win.setSize(280, 180, true)
-    else win.setSize(Math.max(bounds.width, 320), Math.max(bounds.height, 360), true)
+    if (compact) win.setSize(420, 240, true)
+    else win.setSize(Math.max(bounds.width, 480), Math.max(bounds.height, 520), true)
     saveBounds()
   })
   ipcMain.on("snap", (_event, corner) => {

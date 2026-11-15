@@ -4,8 +4,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import { fetchCatalog, searchSpecies, type IndexedCatalog } from "@/lib/catalog"
 import { advise } from "@/lib/advise"
 import { resolveFighter } from "@/lib/resolve"
-import { hydrateFight, patchFoe, setActive, useFight } from "@/lib/store"
+import { hydrateFight, patchFoe, patchSlot, setActive, useFight } from "@/lib/store"
 import { matchSpeciesName, readBattleText } from "@/lib/battle-text"
+import { fillSlotFromSummary } from "@/lib/summary-text"
 import { CatalogProvider, useCatalog } from "@/components/catalog-context"
 import { cn } from "cn"
 
@@ -74,11 +75,13 @@ function Hud() {
   })
   const advice = you && foe ? advise(you, foe, bench, fight.weather) : null
   const pick = advice?.moves.find((move) => move.recommended) ?? null
+  const switchPick = advice?.switches.find((option) => option.recommended) ?? null
   const [desktop, setDesktop] = useState(false)
   const [query, setQuery] = useState("")
   const [watching, setWatching] = useState(false)
   const [boxTick, setBoxTick] = useState(0)
   const [seen, setSeen] = useState("")
+  const [fillBusy, setFillBusy] = useState(false)
   const [through, setThrough] = useState(false)
   const throughRef = useRef(false)
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS)
@@ -197,175 +200,206 @@ function Hud() {
     setPrefs((current) => ({ ...current, ...next }))
   }
 
+  async function fillActiveFromSummary() {
+    if (!window.slate?.pickRegion || !window.slate.readRegion || fillBusy) return
+    setFillBusy(true)
+    setSeen("Open the summary, then drag a box over it.")
+    try {
+      const box = await window.slate.pickRegion()
+      if (!box) {
+        setSeen("Summary box cancelled.")
+        return
+      }
+      const result = await window.slate.readRegion(box)
+      if (result.error) {
+        setSeen(result.error)
+        return
+      }
+      const filled = fillSlotFromSummary(result.text, catalog)
+      if (!filled) {
+        setSeen("Could not read that summary. Draw the whole Ampharos window.")
+        return
+      }
+      patchSlot(fight.active, filled)
+      const name = catalog.speciesById.get(filled.speciesId ?? "")?.name ?? "Pokémon"
+      setSeen(`Filled slot ${fight.active + 1}: ${name}.`)
+    } catch {
+      setSeen("The summary could not be read.")
+    } finally {
+      setFillBusy(false)
+    }
+  }
+
   return (
     <div className="p-2" data-catch>
-      <Window>
-        <TitleBar
-          title={foe?.name ?? "Wild Pokémon"}
-          level={foe ? `Lv ${foe.level}` : ""}
-          compact={prefs.compact}
-          onClose={desktop ? () => window.slate?.close() : undefined}
-          onToggleCompact={() => patchPrefs({ compact: !prefs.compact })}
+      <div className="flex items-stretch gap-2">
+        <PartyStrip
+          party={fight.party}
+          active={fight.active}
+          switchName={switchPick?.name ?? null}
+          catalog={catalog}
+          onSelect={setActive}
         />
+        <Window>
+          <TitleBar
+            title={foe?.name ?? "Wild Pokémon"}
+            level={foe ? `Lv ${foe.level}` : ""}
+            compact={prefs.compact}
+            onClose={desktop ? () => window.slate?.close() : undefined}
+            onToggleCompact={() => patchPrefs({ compact: !prefs.compact })}
+          />
 
-        {through ? (
-          <div className="hud-nodrag flex items-center gap-2 border-b-2 border-black bg-[#e0e0e0] px-3 py-2">
-            <p className="min-w-0 flex-1 text-[12px] font-bold text-black">Hover here to use the window.</p>
-            <button type="button" className="border-2 border-black bg-white px-2 py-0.5 text-[12px] font-bold text-black hover:text-[#3b4cca]" onClick={() => setThrough(false)}>
-              Unlock
-            </button>
-          </div>
-        ) : null}
+          {through ? (
+            <div className="hud-nodrag flex items-center gap-2 border-b-2 border-black bg-[#e0e0e0] px-3 py-2">
+              <p className="min-w-0 flex-1 text-[12px] font-bold text-black">Hover here to use the window.</p>
+              <button type="button" className="border-2 border-black bg-white px-2 py-0.5 text-[12px] font-bold text-black hover:text-[#3b4cca]" onClick={() => setThrough(false)}>
+                Unlock
+              </button>
+            </div>
+          ) : null}
 
-        <div className="hud-nodrag px-3 py-3">
-          <button
-            type="button"
-            className="text-[12px] font-bold text-black hover:text-[#3b4cca]"
-            onClick={() => setActive((fight.active + 1) % fight.party.length)}
-          >
-            {you?.name ?? "Your Pokémon"}
-          </button>
+          <div className="hud-nodrag px-3 py-3">
+            <p className="text-[12px] font-bold text-black">{you?.name ?? "Your Pokémon"}</p>
 
-          {pick ? (
-            <div className="mt-1.5">
-              <p className="text-[20px] font-bold leading-none text-black">{pick.name}</p>
-              <p className="mt-1.5 text-[12px] text-black">
-                {pick.type}. {pick.label}.
+            {switchPick && advice?.verdict === "switch" ? (
+              <div className="mt-1.5">
+                <p className="text-[20px] font-bold leading-none text-black">Send {switchPick.name}</p>
+                <p className="mt-1.5 text-[12px] text-black">{pick ? `Then click ${pick.name}.` : switchPick.reason}</p>
+              </div>
+            ) : pick ? (
+              <div className="mt-1.5">
+                <p className="text-[20px] font-bold leading-none text-black">{pick.name}</p>
+                <p className="mt-1.5 text-[12px] text-black">
+                  {pick.type}. {pick.label}.
+                </p>
+              </div>
+            ) : (
+              <p className="mt-2 text-[13px] leading-5 text-black">
+                {advice?.headline ?? "Type the Pokémon in front of you."}
               </p>
-            </div>
-          ) : (
-            <p className="mt-2 text-[13px] leading-5 text-black">
-              {advice?.headline ?? "Type the Pokémon in front of you."}
-            </p>
-          )}
+            )}
 
-          {!prefs.compact && advice && advice.moves.length > 0 ? (
-            <ul className="mt-3 flex flex-col gap-2">
-              {advice.moves.map((move) => (
-                <li key={`${move.id}-${move.type}`}>
-                  <div
-                    className={cn(
-                      "flex items-baseline gap-2 rounded-none bg-white px-2.5 py-2 text-left text-black",
-                      move.recommended ? "border-2 border-blue-600 bg-blue-100" : "border-2 border-black",
-                    )}
-                  >
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-bold">{move.name}</span>
-                    <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-black">{move.label}</span>
+            {!prefs.compact && advice && advice.moves.length > 0 ? (
+              <ul className="mt-3 flex flex-col gap-2">
+                {advice.moves.map((move) => (
+                  <li key={`${move.id}-${move.type}`}>
+                    <div
+                      className={cn(
+                        "flex items-baseline gap-2 rounded-none bg-white px-2.5 py-2 text-left text-black",
+                        move.recommended ? "border-2 border-blue-600 bg-blue-100" : "border-2 border-black",
+                      )}
+                    >
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-bold">{move.name}</span>
+                      <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-black">{move.label}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {!prefs.compact ? (
+              <>
+                <label className="mt-3 block">
+                  <span className="sr-only">Pokémon in front of you</span>
+                  <input
+                    value={query}
+                    placeholder={foe ? foe.name : "Pokémon in front of you"}
+                    className="h-8 w-full rounded-none border-2 border-black bg-white px-2 text-[13px] text-black outline-none placeholder:text-[#707070]"
+                    onChange={(event) => setQuery(event.target.value)}
+                  />
+                </label>
+                {desktop ? (
+                  <div className="mt-2 flex items-stretch overflow-hidden rounded-none border-2 border-black bg-[#3b4cca]">
+                    <button
+                      type="button"
+                      className="px-2.5 py-2 text-[12px] font-bold text-white hover:text-yellow-200"
+                      onClick={() => void watchBattle(setWatching, setSeen)}
+                    >
+                      {watching ? "Stop" : "Watch"}
+                    </button>
+                    <span className="w-0.5 self-stretch bg-black" aria-hidden />
+                    <button
+                      type="button"
+                      className="px-2.5 py-2 text-[12px] font-bold text-white hover:text-yellow-200"
+                      onClick={() => void chooseBox(setWatching, setSeen, setBoxTick)}
+                    >
+                      Foe box
+                    </button>
+                    <span className="w-0.5 self-stretch bg-black" aria-hidden />
+                    <button
+                      type="button"
+                      className="px-2.5 py-2 text-[12px] font-bold text-white hover:text-yellow-200 disabled:opacity-60"
+                      disabled={fillBusy}
+                      onClick={() => void fillActiveFromSummary()}
+                    >
+                      {fillBusy ? "…" : "Fill"}
+                    </button>
+                    <span className="w-0.5 self-stretch bg-black" aria-hidden />
+                    <button
+                      type="button"
+                      className={cn("px-2.5 py-2 text-[12px] font-bold text-white hover:text-yellow-200", through && "text-yellow-200")}
+                      onClick={() => setThrough((current) => !current)}
+                    >
+                      {through ? "Unlock" : "Through"}
+                    </button>
+                    {seen ? (
+                      <>
+                        <span className="w-0.5 self-stretch bg-black" aria-hidden />
+                        <p className="min-w-0 flex-1 truncate px-2 py-2 text-[11px] font-bold text-white">{seen}</p>
+                      </>
+                    ) : null}
                   </div>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-
-          {!prefs.compact && advice && !pick && advice.switches.some((option) => option.recommended) ? (
-            <p className="mt-2 text-[12px] leading-5 text-black">
-              {advice.switches
-                .filter((option) => option.recommended)
-                .map((option) => `Send ${option.name}.`)
-                .join(" ")}
-            </p>
-          ) : null}
-
-          {!prefs.compact ? (
-            <>
-              <label className="mt-3 block">
-                <span className="sr-only">Pokémon in front of you</span>
-                <input
-                  value={query}
-                  placeholder={foe ? foe.name : "Pokémon in front of you"}
-                  className="h-8 w-full rounded-none border-2 border-black bg-white px-2 text-[13px] text-black outline-none placeholder:text-[#707070]"
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </label>
-              {desktop ? (
-                <div className="mt-2 flex items-stretch overflow-hidden rounded-none border-2 border-black bg-[#3b4cca]">
-                  <button
-                    type="button"
-                    className="px-2.5 py-2 text-[12px] font-bold text-white hover:text-yellow-200"
-                    onClick={() => void watchBattle(setWatching, setSeen)}
-                  >
-                    {watching ? "Stop" : "Watch"}
-                  </button>
-                  <span className="w-0.5 self-stretch bg-black" aria-hidden />
-                  <button
-                    type="button"
-                    className="px-2.5 py-2 text-[12px] font-bold text-white hover:text-yellow-200"
-                    onClick={() => void chooseBox(setWatching, setSeen, setBoxTick)}
-                  >
-                    Box
-                  </button>
-                  <span className="w-0.5 self-stretch bg-black" aria-hidden />
-                  <button
-                    type="button"
-                    className={cn("px-2.5 py-2 text-[12px] font-bold text-white hover:text-yellow-200", through && "text-yellow-200")}
-                    onClick={() => setThrough((current) => !current)}
-                  >
-                    {through ? "Unlock" : "Through"}
-                  </button>
-                  <span className="w-0.5 self-stretch bg-black" aria-hidden />
-                  <button
-                    type="button"
-                    className="px-2.5 py-2 text-[12px] font-bold text-white hover:text-yellow-200"
-                    onClick={() => window.slate?.snap?.("tr")}
-                  >
-                    Corner
-                  </button>
-                  {seen ? (
-                    <>
-                      <span className="w-0.5 self-stretch bg-black" aria-hidden />
-                      <p className="min-w-0 flex-1 truncate px-2 py-2 text-[11px] font-bold text-white">{seen}</p>
-                    </>
-                  ) : null}
-                </div>
-              ) : null}
-              {matches.length > 0 ? (
-                <ul className="mt-1 overflow-hidden rounded-none border-2 border-black bg-white">
-                  {matches.map((species) => (
-                    <li key={species.id} className="border-b-2 border-black last:border-b-0">
-                      <button
-                        type="button"
-                        className="flex w-full items-baseline justify-between px-2.5 py-1.5 text-left text-[13px] font-bold text-black hover:text-[#3b4cca]"
-                        onClick={() => chooseFoe(species.id)}
-                      >
-                        <span>{species.name}</span>
-                        <span className="text-[11px] text-black">{species.types.join(" / ")}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </>
-          ) : (
-            <div className="mt-2 flex items-stretch overflow-hidden rounded-none border-2 border-black bg-[#3b4cca] text-[11px]">
-              {desktop ? (
-                <>
-                  <button
-                    type="button"
-                    className="px-2.5 py-2 font-bold text-white hover:text-yellow-200"
-                    onClick={() => void watchBattle(setWatching, setSeen)}
-                  >
-                    {watching ? "Stop" : "Watch"}
-                  </button>
-                  <span className="w-0.5 self-stretch bg-black" aria-hidden />
-                  <button
-                    type="button"
-                    className="px-2.5 py-2 font-bold text-white hover:text-yellow-200"
-                    onClick={() => void chooseBox(setWatching, setSeen, setBoxTick)}
-                  >
-                    Box
-                  </button>
-                  <span className="w-0.5 self-stretch bg-black" aria-hidden />
-                </>
-              ) : null}
-              {seen ? (
-                <p className="min-w-0 flex-1 truncate px-2 py-2 font-bold text-white">{seen}</p>
-              ) : (
-                <p className="min-w-0 flex-1 truncate px-2 py-2 font-bold text-white">Drag the top bar.</p>
-              )}
-            </div>
-          )}
-        </div>
-      </Window>
+                ) : null}
+                {matches.length > 0 ? (
+                  <ul className="mt-1 overflow-hidden rounded-none border-2 border-black bg-white">
+                    {matches.map((species) => (
+                      <li key={species.id} className="border-b-2 border-black last:border-b-0">
+                        <button
+                          type="button"
+                          className="flex w-full items-baseline justify-between px-2.5 py-1.5 text-left text-[13px] font-bold text-black hover:text-[#3b4cca]"
+                          onClick={() => chooseFoe(species.id)}
+                        >
+                          <span>{species.name}</span>
+                          <span className="text-[11px] text-black">{species.types.join(" / ")}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </>
+            ) : (
+              <div className="mt-2 flex items-stretch overflow-hidden rounded-none border-2 border-black bg-[#3b4cca] text-[11px]">
+                {desktop ? (
+                  <>
+                    <button
+                      type="button"
+                      className="px-2.5 py-2 font-bold text-white hover:text-yellow-200"
+                      onClick={() => void watchBattle(setWatching, setSeen)}
+                    >
+                      {watching ? "Stop" : "Watch"}
+                    </button>
+                    <span className="w-0.5 self-stretch bg-black" aria-hidden />
+                    <button
+                      type="button"
+                      className="px-2.5 py-2 font-bold text-white hover:text-yellow-200 disabled:opacity-60"
+                      disabled={fillBusy}
+                      onClick={() => void fillActiveFromSummary()}
+                    >
+                      Fill
+                    </button>
+                    <span className="w-0.5 self-stretch bg-black" aria-hidden />
+                  </>
+                ) : null}
+                {seen ? (
+                  <p className="min-w-0 flex-1 truncate px-2 py-2 font-bold text-white">{seen}</p>
+                ) : (
+                  <p className="min-w-0 flex-1 truncate px-2 py-2 font-bold text-white">Click a slot, then Fill.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </Window>
+      </div>
     </div>
   )
 }
@@ -412,9 +446,51 @@ async function watchBattle(setWatching: (next: boolean | ((current: boolean) => 
   setWatching((current) => !current)
 }
 
+function PartyStrip({
+  party,
+  active,
+  switchName,
+  catalog,
+  onSelect,
+}: {
+  party: { speciesId: string; level: number; moves: { id: string }[] }[]
+  active: number
+  switchName: string | null
+  catalog: IndexedCatalog
+  onSelect: (index: number) => void
+}) {
+  return (
+    <aside className="hud-nodrag flex w-[118px] shrink-0 flex-col gap-1">
+      {party.map((slot, index) => {
+        const species = slot.speciesId ? catalog.speciesById.get(slot.speciesId) : null
+        const name = species?.name ?? `Slot ${index + 1}`
+        const selected = index === active
+        const suggested = switchName != null && species?.name === switchName
+        return (
+          <button
+            key={`${slot.speciesId || "empty"}-${index}`}
+            type="button"
+            onClick={() => onSelect(index)}
+            className={cn(
+              "rounded-none border-2 px-1.5 py-1.5 text-left",
+              suggested ? "border-blue-600 bg-blue-100" : selected ? "border-[#e3350d] bg-white" : "border-black bg-[#f8f8f8]",
+            )}
+          >
+            <p className="truncate text-[11px] font-bold text-black">{name}</p>
+            <p className="text-[10px] font-bold text-black">
+              Lv {slot.level}
+              {slot.moves.length ? ` · ${slot.moves.length}mv` : ""}
+            </p>
+          </button>
+        )
+      })}
+    </aside>
+  )
+}
+
 function Window({ children }: { children: ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-none border-2 border-black bg-[#f8f8f8] font-sans text-black antialiased-none [-webkit-font-smoothing:none]">
+    <div className="min-w-0 flex-1 overflow-hidden rounded-none border-2 border-black bg-[#f8f8f8] font-sans text-black antialiased-none [-webkit-font-smoothing:none]">
       {children}
     </div>
   )
