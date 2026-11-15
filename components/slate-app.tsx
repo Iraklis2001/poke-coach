@@ -6,7 +6,6 @@ import { hydrateFight, useFight } from "@/lib/store"
 import { CatalogProvider } from "@/components/catalog-context"
 import { FightView } from "@/components/fight-view"
 import { MoveBook } from "@/components/move-book"
-import { canFloat, FLOAT_NEEDS_BROWSER, openCoachWindow } from "@/components/overlay"
 import { TeamView } from "@/components/team-view"
 import { TypeLab } from "@/components/type-lab"
 import { Button } from "@/components/ui/button"
@@ -25,7 +24,6 @@ export function SlateApp() {
   const [catalog, setCatalog] = useState<IndexedCatalog | null>(null)
   const [error, setError] = useState(false)
   const [view, setView] = useState<View>("fight")
-  const [floatNote, setFloatNote] = useState<string | null>(null)
 
   useEffect(() => {
     hydrateFight()
@@ -41,20 +39,6 @@ export function SlateApp() {
       cancelled = true
     }
   }, [])
-
-  async function float() {
-    if (!catalog) return
-    if (!canFloat()) {
-      setFloatNote("Chrome and Edge can float this panel on top of the game. In this browser, drag the window to the side of Pokémon Revolution Online and narrow it.")
-      return
-    }
-    try {
-      const opened = await openCoachWindow(catalog)
-      setFloatNote(opened ? "The coach is floating. Drag it over the game window." : FLOAT_NEEDS_BROWSER)
-    } catch {
-      setFloatNote(FLOAT_NEEDS_BROWSER)
-    }
-  }
 
   if (!ready || !catalog) {
     return (
@@ -85,15 +69,13 @@ export function SlateApp() {
                 </Button>
               ))}
             </nav>
-            <Button type="button" className="w-full sm:w-auto" onClick={() => void float()}>
-              Float over the game
+            <Button className="w-full sm:w-auto" render={<a href="/overlay" />}>
+              Game overlay
             </Button>
           </header>
-          {floatNote ? <p className="text-sm leading-6 text-muted-foreground">{floatNote}</p> : (
-            <p className="text-sm leading-6 text-muted-foreground">
-              Slate cannot press the buttons in the game. It tells you the click. In Chrome or Edge, float the panel and drag it over the client.
-            </p>
-          )}
+          <p className="text-sm leading-6 text-muted-foreground">
+            Slate does not press buttons in the game. Game overlay is the small panel that stays on top of Pokémon Revolution Online and tells you the click.
+          </p>
           {view === "fight" ? <FightView mode="page" /> : null}
           {view === "team" ? <TeamView /> : null}
           {view === "types" ? <TypeLab /> : null}

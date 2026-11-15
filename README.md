@@ -12,7 +12,7 @@ It explains the type chart, including the server's Shadow type, and it ranks the
 4. When a fight starts, search the Pokémon in front of you.
 5. If the summary window is open, type the six stats in. The size of the hit stops being a guess.
 6. Hidden Power on this server is not a Normal move. Set the type the summary shows. It is never Normal or Fairy, and the power is 60.
-7. In Chrome or Edge, press **Float over the game** and drag the small window over the client. Other browsers can just be narrowed and snapped to the side.
+7. Open **Game overlay**. That panel is the in-fight view: the call, your four moves, and your six. On your computer, `npm run overlay` opens it as its own window and keeps that window above Pokémon Revolution Online. Drag the top bar to place it. Alt+Shift+S lets clicks pass through to the game.
 
 Weather buttons cover sun, rain, and sand. Health sliders cover a hurt Pokémon. Abilities such as Levitate, Flash Fire, and Water Absorb are included when you set them.
 
@@ -25,7 +25,7 @@ npm install
 npm run dev
 ```
 
-Open the app on port 3847. `npm test` checks the type chart and the fight calls. `npm run lint` runs ESLint.
+Open the app on port 3847. `npm run overlay` opens the always-on-top panel. `npm test` checks the type chart and the fight calls. `npm run lint` runs ESLint.
 
 ## Deploy on Vercel
 

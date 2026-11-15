@@ -136,6 +136,19 @@
   }
 }
 
+html.hud-root,
+html.hud-root body {
+  background: transparent !important;
+}
+
+.hud-drag {
+  -webkit-app-region: drag;
+}
+
+.hud-nodrag {
+  -webkit-app-region: no-drag;
+}
+
 .slate-sky {
   background:
     radial-gradient(900px 420px at 0% -10%, rgba(226, 91, 42, 0.16), transparent 55%),
