@@ -45,10 +45,12 @@ export function HudApp() {
     return (
       <div className="p-2">
         <Window>
-          <header className="hud-drag border-b border-[#12161a] bg-[#3a424c] px-2 py-1">
-            <p className="text-[13px] text-white">Slate</p>
+          <header className="hud-drag flex items-center gap-2 rounded-t-xl bg-[#E3350D] px-3 py-2">
+            <span className="size-2.5 rounded-full bg-[#3B4CCA] shadow-[0_0_6px_rgba(59,76,202,0.8)]" />
+            <span className="size-2 rounded-full bg-[#4ADE80] shadow-[0_0_6px_rgba(74,222,128,0.7)]" />
+            <p className="text-[13px] font-bold text-white">Slate</p>
           </header>
-          <p className="px-3 py-4 text-[13px] text-[#d7dde4]">{error ? "The type chart did not load." : "Opening…"}</p>
+          <p className="px-3 py-4 text-[13px] text-slate-300">{error ? "The type chart did not load." : "Opening…"}</p>
         </Window>
       </div>
     )
@@ -209,11 +211,11 @@ function Hud() {
         />
 
         {through ? (
-          <div className="hud-nodrag flex items-center gap-2 border-t border-[#12161a] bg-[#1f252b] px-3 py-2">
-            <p className="min-w-0 flex-1 text-[12px] text-[#f0d36a]">Hover here to use the window.</p>
+          <div className="hud-nodrag flex items-center gap-2 border-b border-white/5 bg-slate-900/80 px-3 py-2">
+            <p className="min-w-0 flex-1 text-[12px] text-amber-300">Hover here to use the window.</p>
             <button
               type="button"
-              className="border border-[#12161a] bg-[#3a424c] px-2 py-1 text-[12px] text-white"
+              className="rounded-lg bg-slate-700 px-2.5 py-1 text-[12px] font-medium text-white transition hover:bg-slate-600"
               onClick={() => setThrough(false)}
             >
               Unlock
@@ -221,48 +223,50 @@ function Hud() {
           </div>
         ) : null}
 
-        <div className="hud-nodrag px-3 py-2.5">
+        <div className="hud-nodrag px-3 py-3">
           <button
             type="button"
-            className="text-[12px] text-[#b7c0c8]"
+            className="text-[12px] font-medium text-slate-400 transition hover:text-slate-200"
             onClick={() => setActive((fight.active + 1) % fight.party.length)}
           >
             {you?.name ?? "Your Pokémon"}
           </button>
 
           {pick ? (
-            <div className="mt-1">
-              <p className="text-[20px] leading-none text-white">{pick.name}</p>
-              <p className="mt-1 text-[12px] text-[#d5dde4]">
+            <div className="mt-1.5">
+              <p className="text-[20px] font-bold leading-none tracking-tight text-white">{pick.name}</p>
+              <p className="mt-1.5 text-[12px] text-slate-400">
                 {pick.type}. {pick.label}.
               </p>
             </div>
           ) : (
-            <p className="mt-2 text-[13px] leading-5 text-[#d5dde4]">
+            <p className="mt-2 text-[13px] leading-5 text-slate-300">
               {advice?.headline ?? "Type the Pokémon in front of you."}
             </p>
           )}
 
           {!prefs.compact && advice && advice.moves.length > 0 ? (
-            <ul className="mt-3 border-t border-[#12161a]">
+            <ul className="mt-3 grid grid-cols-2 gap-2">
               {advice.moves.map((move) => (
-                <li
-                  key={`${move.id}-${move.type}`}
-                  className={cn(
-                    "flex items-baseline gap-2 border-b border-[#12161a] px-1 py-1 text-[13px]",
-                    move.recommended ? "bg-[#3c4652] text-white" : "text-[#c5ced6]",
-                  )}
-                >
-                  <span className="w-3 text-[#f0d36a]">{move.recommended ? "►" : ""}</span>
-                  <span className="min-w-0 flex-1 truncate">{move.name}</span>
-                  <span className="text-[11px] text-[#9aa6b1]">{move.label}</span>
+                <li key={`${move.id}-${move.type}`}>
+                  <div
+                    className={cn(
+                      "flex h-full min-h-14 flex-col justify-center rounded-xl border px-2.5 py-2 text-left transition",
+                      move.recommended
+                        ? "border-emerald-400/80 bg-emerald-500/15 text-white shadow-[0_0_12px_rgba(52,211,153,0.35)]"
+                        : "border-white/5 bg-slate-800/70 text-slate-400 opacity-70",
+                    )}
+                  >
+                    <span className="truncate text-[13px] font-semibold">{move.name}</span>
+                    <span className="mt-0.5 truncate text-[10px] uppercase tracking-wide text-slate-400">{move.label}</span>
+                  </div>
                 </li>
               ))}
             </ul>
           ) : null}
 
           {!prefs.compact && advice && !pick && advice.switches.some((option) => option.recommended) ? (
-            <p className="mt-2 text-[12px] leading-5 text-[#d5dde4]">
+            <p className="mt-2 text-[12px] leading-5 text-slate-300">
               {advice.switches
                 .filter((option) => option.recommended)
                 .map((option) => `Send ${option.name}.`)
@@ -277,50 +281,57 @@ function Hud() {
                 <input
                   value={query}
                   placeholder={foe ? foe.name : "Pokémon in front of you"}
-                  className="h-7 w-full border border-[#12161a] bg-[#1a1e22] px-2 text-[13px] text-white outline-none placeholder:text-[#8b97a3]"
+                  className="h-8 w-full rounded-lg border border-white/10 bg-slate-900/80 px-2.5 text-[13px] text-white outline-none placeholder:text-slate-500 focus:border-[#E3350D]/60"
                   onChange={(event) => setQuery(event.target.value)}
                 />
               </label>
               {desktop ? (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-1 rounded-xl bg-slate-800/50 p-1">
                   <button
                     type="button"
-                    className="border border-[#12161a] bg-[#3a424c] px-2 py-1 text-[12px] text-white"
+                    className="rounded-lg px-2.5 py-1.5 text-[12px] font-medium text-white transition hover:bg-slate-700/80"
                     onClick={() => void watchBattle(setWatching, setSeen)}
                   >
                     {watching ? "Stop" : "Watch battle"}
                   </button>
                   <button
                     type="button"
-                    className="px-1 text-[12px] text-[#9aa6b1]"
+                    className="rounded-lg px-2.5 py-1.5 text-[12px] font-medium text-slate-300 transition hover:bg-slate-700/80 hover:text-white"
                     onClick={() => void chooseBox(setWatching, setSeen, setBoxTick)}
                   >
                     Box
                   </button>
                   <button
                     type="button"
-                    className={cn("px-1 text-[12px]", through ? "text-[#f0d36a]" : "text-[#9aa6b1]")}
+                    className={cn(
+                      "rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition hover:bg-slate-700/80 hover:text-white",
+                      through ? "text-amber-300" : "text-slate-300",
+                    )}
                     onClick={() => setThrough((current) => !current)}
                   >
                     {through ? "Unlock" : "Through"}
                   </button>
-                  <button type="button" className="px-1 text-[12px] text-[#9aa6b1]" onClick={() => window.slate?.snap?.("tr")}>
+                  <button
+                    type="button"
+                    className="rounded-lg px-2.5 py-1.5 text-[12px] font-medium text-slate-300 transition hover:bg-slate-700/80 hover:text-white"
+                    onClick={() => window.slate?.snap?.("tr")}
+                  >
                     Corner
                   </button>
-                  {seen ? <p className="min-w-0 flex-1 truncate text-[11px] text-[#9aa6b1]">{seen}</p> : null}
+                  {seen ? <p className="min-w-0 flex-1 truncate px-2 text-[11px] text-slate-400">{seen}</p> : null}
                 </div>
               ) : null}
               {matches.length > 0 ? (
-                <ul className="mt-1 border border-[#12161a] bg-[#1a1e22]">
+                <ul className="mt-1 overflow-hidden rounded-xl border border-white/10 bg-slate-900/80">
                   {matches.map((species) => (
                     <li key={species.id}>
                       <button
                         type="button"
-                        className="flex w-full items-baseline justify-between px-2 py-1 text-left text-[13px] text-[#d5dde4] hover:bg-[#3c4652]"
+                        className="flex w-full items-baseline justify-between px-2.5 py-1.5 text-left text-[13px] text-slate-200 transition hover:bg-slate-700/70"
                         onClick={() => chooseFoe(species.id)}
                       >
                         <span>{species.name}</span>
-                        <span className="text-[11px] text-[#8b97a3]">{species.types.join(" / ")}</span>
+                        <span className="text-[11px] text-slate-500">{species.types.join(" / ")}</span>
                       </button>
                     </li>
                   ))}
@@ -328,26 +339,30 @@ function Hud() {
               ) : null}
             </>
           ) : (
-            <div className="mt-2 flex items-center gap-2 text-[11px] text-[#9aa6b1]">
+            <div className="mt-2 flex items-center gap-1 rounded-xl bg-slate-800/50 p-1 text-[11px] text-slate-400">
               {desktop ? (
                 <>
                   <button
                     type="button"
-                    className="border border-[#12161a] bg-[#3a424c] px-2 py-0.5 text-[11px] text-white"
+                    className="rounded-lg px-2.5 py-1.5 font-medium text-white transition hover:bg-slate-700/80"
                     onClick={() => void watchBattle(setWatching, setSeen)}
                   >
                     {watching ? "Stop" : "Watch"}
                   </button>
                   <button
                     type="button"
-                    className="px-1 text-[11px] text-[#9aa6b1]"
+                    className="rounded-lg px-2.5 py-1.5 font-medium text-slate-300 transition hover:bg-slate-700/80 hover:text-white"
                     onClick={() => void chooseBox(setWatching, setSeen, setBoxTick)}
                   >
                     Box
                   </button>
                 </>
               ) : null}
-              {seen ? <p className="min-w-0 flex-1 truncate">{seen}</p> : <p className="min-w-0 flex-1 truncate">Drag the top bar.</p>}
+              {seen ? (
+                <p className="min-w-0 flex-1 truncate px-2">{seen}</p>
+              ) : (
+                <p className="min-w-0 flex-1 truncate px-2">Drag the top bar.</p>
+              )}
             </div>
           )}
         </div>
@@ -400,10 +415,7 @@ async function watchBattle(setWatching: (next: boolean | ((current: boolean) => 
 
 function Window({ children }: { children: ReactNode }) {
   return (
-    <div
-      className="overflow-hidden border border-[#9aa4ae] bg-[#2c3136] text-[#e7edf2] shadow-[inset_1px_1px_0_#c5ced6,inset_-1px_-1px_0_#15181b]"
-      style={{ fontFamily: "Tahoma, Verdana, sans-serif" }}
-    >
+    <div className="overflow-hidden rounded-xl border border-white/10 bg-[#1e2329] font-sans text-slate-100 shadow-xl shadow-black/40">
       {children}
     </div>
   )
@@ -423,18 +435,27 @@ function TitleBar({
   onToggleCompact: () => void
 }) {
   return (
-    <header className="hud-drag flex items-center gap-1 border-b border-[#12161a] bg-[#3a424c] px-1.5 py-1">
-      <span className="cursor-grab px-1 text-[14px] leading-none text-[#9aa6b1]" title="Drag to move">
-        ⠿
-      </span>
-      <p className="min-w-0 flex-1 truncate text-[13px] text-white">{title}</p>
-      {level ? <p className="text-[12px] text-[#f0d36a]">{level}</p> : null}
+    <header className="hud-drag flex items-center gap-2 rounded-t-xl bg-[#E3350D] px-3 py-2">
+      <div className="flex items-center gap-1.5" title="Drag to move">
+        <span className="size-2.5 rounded-full bg-[#3B4CCA] shadow-[0_0_6px_rgba(59,76,202,0.8)]" />
+        <span className="size-2 rounded-full bg-[#4ADE80] shadow-[0_0_6px_rgba(74,222,128,0.7)]" />
+      </div>
+      <p className="min-w-0 flex-1 truncate text-[13px] font-bold text-white">{title}</p>
+      {level ? <p className="text-[12px] font-semibold text-white/90">{level}</p> : null}
       <div className="hud-nodrag flex items-center gap-0.5">
-        <button type="button" className="px-1 text-[11px] text-[#d5dde4] hover:text-white" onClick={onToggleCompact}>
+        <button
+          type="button"
+          className="rounded-md px-2 py-0.5 text-[11px] font-medium text-white/90 transition hover:bg-black/20 hover:text-white"
+          onClick={onToggleCompact}
+        >
           {compact ? "More" : "Less"}
         </button>
         {onClose ? (
-          <button type="button" className="px-1 text-[12px] text-[#d5dde4] hover:text-white" onClick={onClose}>
+          <button
+            type="button"
+            className="rounded-md px-1.5 py-0.5 text-[12px] text-white/90 transition hover:bg-black/20 hover:text-white"
+            onClick={onClose}
+          >
             ✕
           </button>
         ) : null}
