@@ -204,13 +204,8 @@ function Hud() {
           title={foe?.name ?? "Wild Pokémon"}
           level={foe ? `Lv ${foe.level}` : ""}
           compact={prefs.compact}
-          through={through}
-          desktop={desktop}
           onClose={desktop ? () => window.slate?.close() : undefined}
           onToggleCompact={() => patchPrefs({ compact: !prefs.compact })}
-          onToggleThrough={() => setThrough((current) => !current)}
-          onOpacity={(delta) => patchPrefs({ opacity: Math.min(1, Math.max(0.5, prefs.opacity + delta)) })}
-          onSnap={(corner) => window.slate?.snap?.(corner)}
         />
 
         {through ? (
@@ -287,7 +282,7 @@ function Hud() {
                 />
               </label>
               {desktop ? (
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     className="border border-[#12161a] bg-[#3a424c] px-2 py-1 text-[12px] text-white"
@@ -301,6 +296,16 @@ function Hud() {
                     onClick={() => void chooseBox(setWatching, setSeen, setBoxTick)}
                   >
                     Box
+                  </button>
+                  <button
+                    type="button"
+                    className={cn("px-1 text-[12px]", through ? "text-[#f0d36a]" : "text-[#9aa6b1]")}
+                    onClick={() => setThrough((current) => !current)}
+                  >
+                    {through ? "Unlock" : "Through"}
+                  </button>
+                  <button type="button" className="px-1 text-[12px] text-[#9aa6b1]" onClick={() => window.slate?.snap?.("tr")}>
+                    Corner
                   </button>
                   {seen ? <p className="min-w-0 flex-1 truncate text-[11px] text-[#9aa6b1]">{seen}</p> : null}
                 </div>
@@ -342,7 +347,7 @@ function Hud() {
                   </button>
                 </>
               ) : null}
-              {seen ? <p className="min-w-0 flex-1 truncate">{seen}</p> : <p className="min-w-0 flex-1 truncate">Drag the top bar to move.</p>}
+              {seen ? <p className="min-w-0 flex-1 truncate">{seen}</p> : <p className="min-w-0 flex-1 truncate">Drag the top bar.</p>}
             </div>
           )}
         </div>
@@ -408,24 +413,14 @@ function TitleBar({
   title,
   level,
   compact,
-  through,
-  desktop,
   onClose,
   onToggleCompact,
-  onToggleThrough,
-  onOpacity,
-  onSnap,
 }: {
   title: string
   level?: string
   compact: boolean
-  through: boolean
-  desktop: boolean
   onClose?: () => void
   onToggleCompact: () => void
-  onToggleThrough: () => void
-  onOpacity: (delta: number) => void
-  onSnap: (corner: "tl" | "tr" | "bl" | "br") => void
 }) {
   return (
     <header className="hud-drag flex items-center gap-1 border-b border-[#12161a] bg-[#3a424c] px-1.5 py-1">
@@ -434,42 +429,16 @@ function TitleBar({
       </span>
       <p className="min-w-0 flex-1 truncate text-[13px] text-white">{title}</p>
       {level ? <p className="text-[12px] text-[#f0d36a]">{level}</p> : null}
-      {desktop ? (
-        <div className="hud-nodrag flex items-center gap-0.5">
-          <button type="button" className="px-1 text-[11px] text-[#d5dde4] hover:text-white" title="Smaller" onClick={() => onOpacity(-0.1)}>
-            −
-          </button>
-          <button type="button" className="px-1 text-[11px] text-[#d5dde4] hover:text-white" title="Clearer" onClick={() => onOpacity(0.1)}>
-            +
-          </button>
-          <button
-            type="button"
-            className={cn("px-1 text-[11px] hover:text-white", through ? "text-[#f0d36a]" : "text-[#d5dde4]")}
-            title="Let clicks reach the game. Hover the window again to use it."
-            onClick={onToggleThrough}
-          >
-            {through ? "Unlock" : "Through"}
-          </button>
-          <button type="button" className="px-1 text-[11px] text-[#d5dde4] hover:text-white" title={compact ? "Show moves" : "Hide moves"} onClick={onToggleCompact}>
-            {compact ? "More" : "Less"}
-          </button>
-          <button type="button" className="px-1 text-[11px] text-[#d5dde4] hover:text-white" title="Park top left" onClick={() => onSnap("tl")}>
-            TL
-          </button>
-          <button type="button" className="px-1 text-[11px] text-[#d5dde4] hover:text-white" title="Park top right" onClick={() => onSnap("tr")}>
-            TR
-          </button>
-          {onClose ? (
-            <button type="button" className="px-1 text-[12px] text-[#d5dde4] hover:text-white" onClick={onClose}>
-              ✕
-            </button>
-          ) : null}
-        </div>
-      ) : onClose ? (
-        <button type="button" className="hud-nodrag px-1 text-[12px] text-[#d5dde4] hover:text-white" onClick={onClose}>
-          ✕
+      <div className="hud-nodrag flex items-center gap-0.5">
+        <button type="button" className="px-1 text-[11px] text-[#d5dde4] hover:text-white" onClick={onToggleCompact}>
+          {compact ? "More" : "Less"}
         </button>
-      ) : null}
+        {onClose ? (
+          <button type="button" className="px-1 text-[12px] text-[#d5dde4] hover:text-white" onClick={onClose}>
+            ✕
+          </button>
+        ) : null}
+      </div>
     </header>
   )
 }
