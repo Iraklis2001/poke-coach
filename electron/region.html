@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Choose the battle text</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; cursor: crosshair; user-select: none; background: rgba(0, 0, 0, 0.28); font-family: Tahoma, Verdana, sans-serif; }
+      #hint { position: fixed; top: 16px; left: 16px; margin: 0; padding: 8px 10px; background: #2c3136; color: #e7edf2; border: 1px solid #9aa4ae; font-size: 13px; }
+      #box { position: fixed; display: none; border: 2px solid #f0d36a; background: rgba(240, 211, 106, 0.18); }
+    </style>
+  </head>
+  <body>
+    <p id="hint">Drag a box around the battle text. Esc cancels.</p>
+    <div id="box"></div>
+    <script>
+      const box = document.getElementById("box")
+      let origin = null
+      document.addEventListener("mousedown", (event) => {
+        origin = { screenX: event.screenX, screenY: event.screenY, clientX: event.clientX, clientY: event.clientY }
+        box.style.display = "block"
+        box.style.left = event.clientX + "px"
+        box.style.top = event.clientY + "px"
+        box.style.width = "0px"
+        box.style.height = "0px"
+      })
+      document.addEventListener("mousemove", (event) => {
+        if (!origin) return
+        const left = Math.min(origin.clientX, event.clientX)
+        const top = Math.min(origin.clientY, event.clientY)
+        box.style.left = left + "px"
+        box.style.top = top + "px"
+        box.style.width = Math.abs(event.clientX - origin.clientX) + "px"
+        box.style.height = Math.abs(event.clientY - origin.clientY) + "px"
+      })
+      document.addEventListener("mouseup", (event) => {
+        if (!origin) return
+        const x = Math.min(origin.screenX, event.screenX)
+        const y = Math.min(origin.screenY, event.screenY)
+        const width = Math.abs(event.screenX - origin.screenX)
+        const height = Math.abs(event.screenY - origin.screenY)
+        origin = null
+        window.slateRegion.choose({ x, y, width, height })
+      })
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") window.slateRegion.cancel()
+      })
+    </script>
+  </body>
+</html>

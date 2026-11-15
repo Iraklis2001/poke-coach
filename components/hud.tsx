@@ -1,12 +1,15 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { fetchCatalog, searchSpecies, type IndexedCatalog } from "@/lib/catalog"
 import { advise } from "@/lib/advise"
 import { resolveFighter } from "@/lib/resolve"
 import { hydrateFight, patchFoe, setActive, useFight } from "@/lib/store"
+import { matchSpeciesName, readBattleText } from "@/lib/battle-text"
 import { CatalogProvider, useCatalog } from "@/components/catalog-context"
 import { cn } from "cn"
+
+const BOX_KEY = "slate-battle-box"
 
 export function HudApp() {
   const { ready } = useFight()
@@ -63,11 +66,77 @@ function Hud() {
   const pick = advice?.moves.find((move) => move.recommended) ?? null
   const [desktop, setDesktop] = useState(false)
   const [query, setQuery] = useState("")
+  const [watching, setWatching] = useState(false)
+  const [boxTick, setBoxTick] = useState(0)
+  const [seen, setSeen] = useState("")
+  const fightRef = useRef(fight)
+  const catalogRef = useRef(catalog)
+  fightRef.current = fight
+  catalogRef.current = catalog
   const matches = query.trim() ? searchSpecies(catalog, query, 6) : []
 
   useEffect(() => {
-    if (window.slate) setDesktop(true)
+    if (window.slate?.readRegion) setDesktop(true)
   }, [])
+
+  useEffect(() => {
+    if (!watching || !window.slate?.readRegion) return
+    const raw = window.localStorage.getItem(BOX_KEY)
+    if (!raw) return
+    let box: { x: number; y: number; width: number; height: number }
+    try {
+      box = JSON.parse(raw)
+    } catch {
+      return
+    }
+    let stopped = false
+
+    async function look() {
+      try {
+        const result = await window.slate?.readRegion?.(box)
+        if (stopped || !result) return
+        if (result.error) {
+          setSeen(result.error)
+          return
+        }
+        const read = readBattleText(result.text)
+        const names = catalogRef.current.species
+        const foundFoe = read.foe ? matchSpeciesName(read.foe, names) : null
+        const mine = read.you ? matchSpeciesName(read.you, names) : null
+        if (foundFoe && foundFoe.id !== fightRef.current.foe.speciesId) {
+          patchFoe({
+            speciesId: foundFoe.id,
+            abilityId: foundFoe.abilities[0]?.id ?? "",
+            moves: [],
+            types: null,
+            stats: null,
+            ...(read.level ? { level: read.level } : {}),
+          })
+        } else if (foundFoe && read.level && read.level !== fightRef.current.foe.level) {
+          patchFoe({ level: read.level })
+        }
+        let youLine = ""
+        if (mine) {
+          const index = fightRef.current.party.findIndex((slot) => slot.speciesId === mine.id)
+          if (index >= 0) {
+            setActive(index)
+            youLine = `You: ${mine.name}`
+          } else youLine = `${mine.name} is out, not on your team`
+        }
+        if (foundFoe || youLine) setSeen([youLine, foundFoe ? `Foe: ${foundFoe.name}` : ""].filter(Boolean).join(" · "))
+        else if (result.text.trim()) setSeen("No Pokémon name in that box.")
+      } catch {
+        if (!stopped) setSeen("The battle text could not be read.")
+      }
+    }
+
+    const timer = window.setInterval(() => void look(), 1500)
+    void look()
+    return () => {
+      stopped = true
+      window.clearInterval(timer)
+    }
+  }, [watching, boxTick])
 
   function chooseFoe(id: string) {
     const next = catalog.speciesById.get(id)
@@ -147,6 +216,21 @@ function Hud() {
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
+          {desktop ? (
+            <div className="mt-2 flex items-center gap-2">
+              <button
+                type="button"
+                className="border border-[#12161a] bg-[#3a424c] px-2 py-1 text-[12px] text-white"
+                onClick={() => void watchBattle(setWatching, setSeen)}
+              >
+                {watching ? "Stop" : "Watch battle"}
+              </button>
+              <button type="button" className="px-1 text-[12px] text-[#9aa6b1]" onClick={() => void chooseBox(setWatching, setSeen, setBoxTick)}>
+                Box
+              </button>
+              {seen ? <p className="min-w-0 flex-1 truncate text-[11px] text-[#9aa6b1]">{seen}</p> : null}
+            </div>
+          ) : null}
           {matches.length > 0 ? (
             <ul className="mt-1 border border-[#12161a] bg-[#1a1e22]">
               {matches.map((species) => (
@@ -167,6 +251,34 @@ function Hud() {
       </Window>
     </div>
   )
+}
+
+async function chooseBox(
+  setWatching: (next: boolean) => void,
+  setSeen: (next: string) => void,
+  setBoxTick: (update: (tick: number) => number) => void,
+) {
+  const box = await window.slate?.pickRegion?.()
+  if (!box) return
+  window.localStorage.setItem(BOX_KEY, JSON.stringify(box))
+  setSeen("Watching the box.")
+  setBoxTick((tick) => tick + 1)
+  setWatching(true)
+}
+
+async function watchBattle(setWatching: (next: boolean | ((current: boolean) => boolean)) => void, setSeen: (next: string) => void) {
+  const api = window.slate
+  if (!api?.pickRegion || !api.readRegion) return
+  const existing = window.localStorage.getItem(BOX_KEY)
+  if (!existing) {
+    const box = await api.pickRegion()
+    if (!box) return
+    window.localStorage.setItem(BOX_KEY, JSON.stringify(box))
+    setSeen("Watching the box.")
+    setWatching(true)
+    return
+  }
+  setWatching((current) => !current)
 }
 
 function Window({ children }: { children: ReactNode }) {
@@ -201,6 +313,8 @@ declare global {
       setOpacity: (value: number) => void
       close: () => void
       onClickThrough: (callback: (on: boolean) => void) => () => void
+      pickRegion?: () => Promise<{ x: number; y: number; width: number; height: number } | null>
+      readRegion?: (region: { x: number; y: number; width: number; height: number }) => Promise<{ text: string; error?: string }>
     }
   }
 }

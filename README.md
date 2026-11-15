@@ -12,7 +12,7 @@ It explains the type chart, including the server's Shadow type, and it ranks the
 4. When a fight starts, search the Pokémon in front of you.
 5. If the summary window is open, type the six stats in. The size of the hit stops being a guess.
 6. Hidden Power on this server is not a Normal move. Set the type the summary shows. It is never Normal or Fairy, and the power is 60.
-7. Open **Game overlay**. That panel is the in-fight view: the call, your four moves, and your six. On your computer, `npm run overlay` opens it as its own window and keeps that window above Pokémon Revolution Online. Drag the top bar to place it. Alt+Shift+S lets clicks pass through to the game.
+7. On your computer, `npm run overlay` opens the small window above the game. Press **Watch battle**, then drag a box around the lines “A wild Krabby attacks!” and “Go Gengar!”. The overlay reads those names and marks the move. **Box** draws that area again. You can still type a name if the reader misses it.
 
 Weather buttons cover sun, rain, and sand. Health sliders cover a hurt Pokémon. Abilities such as Levitate, Flash Fire, and Water Absorb are included when you set them.
 

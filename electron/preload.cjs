@@ -15,4 +15,10 @@ contextBridge.exposeInMainWorld("slate", {
     ipcRenderer.on("click-through", listener)
     return () => ipcRenderer.removeListener("click-through", listener)
   },
+  pickRegion() {
+    return ipcRenderer.invoke("pick-region")
+  },
+  readRegion(region) {
+    return ipcRenderer.invoke("read-region", region)
+  },
 })
