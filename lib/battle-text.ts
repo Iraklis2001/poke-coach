@@ -8,10 +8,11 @@ export type BattleNames = {
 
 const FOE_PATTERNS = [
   /a wild\s+([a-z][a-z.'’\- ]{1,24}?)\s+attacks/i,
-  /sent out\s+([a-z][a-z.'’\- ]{1,24}?)!/i,
+  /a wild\s+([a-z][a-z.'’\- ]{1,24}?)(?=\s+attacks|\s+appeared|[!.]|$)/i,
+  /sent out\s+([a-z][a-z.'’\- ]{1,24}?)(?:!|$)/i,
 ]
 
-const YOU_PATTERNS = [/go[,!]?\s+([a-z][a-z.'’\- ]{1,24}?)!/i]
+const YOU_PATTERNS = [/go[,!]?\s+([a-z][a-z.'’\- ]{1,24}?)(?:!|$)/i]
 
 export function readBattleText(text: string): BattleNames {
   const clean = text.replace(/\s+/g, " ").trim()

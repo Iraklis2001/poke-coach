@@ -26,6 +26,7 @@ function createWindow() {
   })
 
   overlay = win
+  win.setContentProtection(true)
   win.setAlwaysOnTop(true, "screen-saver")
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
@@ -123,10 +124,15 @@ async function recognize(png) {
     const { createWorker } = require("tesseract.js")
     reader = createWorker("eng", 1, {
       cachePath: path.join(app.getPath("userData"), "tesseract"),
-    }).catch((error) => {
-      reader = null
-      throw error
     })
+      .then(async (worker) => {
+        await worker.setParameters({ tessedit_pageseg_mode: "6" })
+        return worker
+      })
+      .catch((error) => {
+        reader = null
+        throw error
+      })
   }
   const worker = await reader
   const result = await worker.recognize(png)
@@ -157,7 +163,13 @@ async function captureRegion(region) {
     width: Math.max(1, Math.min(size.width - x, Math.round(region.width * scaleX))),
     height: Math.max(1, Math.min(size.height - y, Math.round(region.height * scaleY))),
   })
-  return recognize(cropped.toPNG())
+  const croppedSize = cropped.getSize()
+  const scaled = cropped.resize({
+    width: Math.max(1, croppedSize.width * 3),
+    height: Math.max(1, croppedSize.height * 3),
+    quality: "best",
+  })
+  return recognize(scaled.toPNG())
 }
 
 ipcMain.handle("pick-region", () => pickRegion())

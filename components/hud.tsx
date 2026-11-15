@@ -124,7 +124,7 @@ function Hud() {
           } else youLine = `${mine.name} is out, not on your team`
         }
         if (foundFoe || youLine) setSeen([youLine, foundFoe ? `Foe: ${foundFoe.name}` : ""].filter(Boolean).join(" · "))
-        else if (result.text.trim()) setSeen("No Pokémon name in that box.")
+        else if (result.text.trim()) setSeen("Draw the box around the two battle lines.")
       } catch {
         if (!stopped) setSeen("The battle text could not be read.")
       }

@@ -15,6 +15,11 @@ test("wild attack and go lines name both pokemon", () => {
   assert.equal(read.you, "Gengar")
 })
 
+test("a cut-off wild line still keeps the name", () => {
+  const read = readBattleText("A wild Tentacool")
+  assert.equal(read.foe, "Tentacool")
+})
+
 test("a trainer send-out names the foe", () => {
   const read = readBattleText("Youngster Joey sent out Rattata!")
   assert.equal(read.foe, "Rattata")
