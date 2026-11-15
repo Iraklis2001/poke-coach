@@ -7,8 +7,8 @@ let passThrough = false
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 400,
-    height: 640,
+    width: 320,
+    height: 360,
     minWidth: 320,
     minHeight: 520,
     frame: false,

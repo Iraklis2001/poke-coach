@@ -1,22 +1,12 @@
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
-import { fetchCatalog, type IndexedCatalog } from "@/lib/catalog"
+import { fetchCatalog, searchSpecies, type IndexedCatalog } from "@/lib/catalog"
 import { advise } from "@/lib/advise"
 import { resolveFighter } from "@/lib/resolve"
-import { patchFoe, patchSlot, setActive, setFoeHp, setWeather, setYouHp, useFight, hydrateFight } from "@/lib/store"
-import type { Weather } from "@/lib/types"
+import { hydrateFight, patchFoe, setActive, useFight } from "@/lib/store"
 import { CatalogProvider, useCatalog } from "@/components/catalog-context"
-import { AbilityField, LevelNatureFields, SpeciesField } from "@/components/editors"
-import { TypeChip } from "@/components/type-chip"
 import { cn } from "cn"
-
-const WEATHER: { id: Weather; label: string }[] = [
-  { id: "none", label: "Clear" },
-  { id: "sun", label: "Sun" },
-  { id: "rain", label: "Rain" },
-  { id: "sand", label: "Sand" },
-]
 
 export function HudApp() {
   const { ready } = useFight()
@@ -42,11 +32,11 @@ export function HudApp() {
 
   if (!ready || !catalog) {
     return (
-      <div className="p-3">
-        <Panel>
-          <p className="font-heading text-3xl">Slate</p>
-          <p className="mt-2 text-sm text-muted-foreground">{error ? "The type chart did not load." : "Opening the overlay…"}</p>
-        </Panel>
+      <div className="p-2">
+        <Window>
+          <TitleBar title="Slate" />
+          <p className="px-3 py-4 text-[13px] text-[#d7dde4]">{error ? "The type chart did not load." : "Opening…"}</p>
+        </Window>
       </div>
     )
   }
@@ -70,147 +60,137 @@ function Hud() {
     return fighter ? [fighter] : []
   })
   const advice = you && foe ? advise(you, foe, bench, fight.weather) : null
+  const pick = advice?.moves.find((move) => move.recommended) ?? null
   const [desktop, setDesktop] = useState(false)
-  const [passThrough, setPassThrough] = useState(false)
-  const [setup, setSetup] = useState(false)
+  const [query, setQuery] = useState("")
+  const matches = query.trim() ? searchSpecies(catalog, query, 6) : []
 
   useEffect(() => {
-    const api = window.slate
-    if (!api) return
-    setDesktop(true)
-    return api.onClickThrough(setPassThrough)
+    if (window.slate) setDesktop(true)
   }, [])
+
+  function chooseFoe(id: string) {
+    const next = catalog.speciesById.get(id)
+    patchFoe({
+      speciesId: id,
+      abilityId: next?.abilities[0]?.id ?? "",
+      moves: [],
+      types: null,
+      stats: null,
+    })
+    setQuery("")
+  }
 
   return (
     <div className="p-2">
-      <Panel>
-        <header className="hud-drag flex items-center gap-2 border-b border-white/10 px-3 py-2">
-          <div>
-            <p className="text-[11px] font-bold tracking-[0.22em] text-[#e25b2a]">SLATE</p>
-            <p className="text-[11px] text-muted-foreground">{passThrough ? "Clicks go to the game" : "Sits above the game"}</p>
-          </div>
-          <div className="hud-nodrag ml-auto flex items-center gap-1">
-            {desktop ? (
-              <>
-                <button type="button" className="rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-white/10" onClick={() => window.slate?.setOpacity(0.72)}>
-                  Dim
-                </button>
-                <button
-                  type="button"
-                  className={cn("rounded-md px-2 py-1 text-[11px]", passThrough ? "bg-[#e25b2a] text-[#1a100c]" : "text-muted-foreground hover:bg-white/10")}
-                  onClick={() => window.slate?.setClickThrough(!passThrough)}
-                >
-                  {passThrough ? "Unlock" : "Click through"}
-                </button>
-                <button type="button" className="rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-white/10" onClick={() => window.slate?.close()}>
-                  Close
-                </button>
-              </>
-            ) : (
-              <a className="rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:bg-white/10" href="/">
-                Full coach
-              </a>
-            )}
-          </div>
-        </header>
+      <Window>
+        <TitleBar
+          title={foe?.name ?? "Wild Pokémon"}
+          level={foe ? `Lv ${foe.level}` : ""}
+          onClose={desktop ? () => window.slate?.close() : undefined}
+        />
+        <div className="hud-nodrag px-3 py-2.5">
+          <button
+            type="button"
+            className="text-[12px] text-[#b7c0c8]"
+            onClick={() => setActive((fight.active + 1) % fight.party.length)}
+          >
+            {you?.name ?? "Your Pokémon"}
+          </button>
 
-        <div className="hud-nodrag max-h-[calc(100vh-1.5rem)] space-y-3 overflow-y-auto px-3 py-3">
-          {advice ? (
-            <article className="rounded-2xl bg-[#f6f1e6] px-4 py-4 text-[#221c16]" aria-live="polite">
-              <p className="text-[11px] font-bold tracking-[0.16em] text-[#e25b2a] uppercase">{advice.kicker}</p>
-              <h1 className="font-heading mt-1 text-[2.1rem] leading-none">{advice.headline}</h1>
-              <p className="mt-3 text-sm leading-6">{advice.paragraphs[0]}</p>
-            </article>
+          {pick ? (
+            <div className="mt-1">
+              <p className="text-[18px] leading-none text-white">{pick.name}</p>
+              <p className="mt-1 text-[12px] text-[#d5dde4]">
+                {pick.type}. {pick.label}.
+              </p>
+            </div>
           ) : (
-            <article className="rounded-2xl bg-[#f6f1e6] px-4 py-4 text-[#221c16]">
-              <p className="text-[11px] font-bold tracking-[0.16em] text-[#e25b2a] uppercase">Waiting</p>
-              <h1 className="font-heading mt-1 text-3xl leading-none">{foe ? "Choose who you sent out." : "Who is in front of you?"}</h1>
-            </article>
+            <p className="mt-2 text-[13px] leading-5 text-[#d5dde4]">
+              {advice?.headline ?? "Type the Pokémon in front of you."}
+            </p>
           )}
 
-          {advice ? (
-            <ul className="space-y-1.5">
+          {advice && advice.moves.length > 0 ? (
+            <ul className="mt-3 border-t border-[#12161a]">
               {advice.moves.map((move) => (
                 <li
                   key={`${move.id}-${move.type}`}
                   className={cn(
-                    "flex items-center gap-2 rounded-xl border px-2.5 py-2",
-                    move.recommended ? "border-[#e25b2a] bg-[#e25b2a]/15" : "border-white/10 bg-black/20",
+                    "flex items-baseline gap-2 border-b border-[#12161a] px-1 py-1 text-[13px]",
+                    move.recommended ? "bg-[#3c4652] text-white" : "text-[#c5ced6]",
                   )}
                 >
-                  <TypeChip type={move.type} />
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold">{move.name}</span>
-                  <span className={cn("text-xs font-semibold", move.recommended ? "text-[#ffb089]" : "text-muted-foreground")}>{move.label}</span>
+                  <span className="w-3 text-[#f0d36a]">{move.recommended ? "►" : ""}</span>
+                  <span className="min-w-0 flex-1 truncate">{move.name}</span>
+                  <span className="text-[11px] text-[#9aa6b1]">{move.label}</span>
                 </li>
               ))}
             </ul>
           ) : null}
 
-          {advice && advice.switches.some((option) => option.recommended) ? (
-            <p className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm leading-6">
+          {advice && !pick && advice.switches.some((option) => option.recommended) ? (
+            <p className="mt-2 text-[12px] leading-5 text-[#d5dde4]">
               {advice.switches
                 .filter((option) => option.recommended)
-                .map((option) => `Bring in ${option.name}. ${option.reason}`)
+                .map((option) => `Send ${option.name}.`)
                 .join(" ")}
             </p>
           ) : null}
 
-          <div className="flex flex-wrap gap-1.5">
-            {fight.party.map((slot, index) => {
-              const species = catalog.speciesById.get(slot.speciesId)
-              return (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => setActive(index)}
-                  className={cn(
-                    "shrink-0 rounded-full border px-3 py-1 text-xs",
-                    index === fight.active ? "border-[#e25b2a] bg-[#e25b2a] text-[#1a100c]" : "border-white/15 text-foreground",
-                  )}
-                >
-                  {species?.name ?? "Empty"}
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="grid grid-cols-4 gap-1">
-            {WEATHER.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => setWeather(option.id)}
-                className={cn(
-                  "rounded-lg py-1.5 text-xs",
-                  fight.weather === option.id ? "bg-[#e25b2a] text-[#1a100c]" : "bg-white/5 text-muted-foreground",
-                )}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-
-          <button type="button" className="text-xs font-medium text-muted-foreground" onClick={() => setSetup((open) => !open)}>
-            {setup ? "Hide setup" : "Change the Pokémon"}
-          </button>
-          {setup ? (
-            <div className="space-y-3 rounded-xl border border-white/10 bg-black/25 p-3">
-              <SpeciesField slot={fight.foe} label="In front of you" onChange={(patch) => patchFoe(patch)} />
-              {foe ? <LevelNatureFields slot={fight.foe} onChange={(patch) => patchFoe(patch)} /> : null}
-              {foe ? <AbilityField slot={fight.foe} onChange={(patch) => patchFoe(patch)} /> : null}
-              <Range label="Their health" value={fight.foeHp} onChange={setFoeHp} />
-              <SpeciesField slot={youSlot} label="You sent out" onChange={(patch) => patchSlot(fight.active, patch)} />
-              {you ? <Range label="Your health" value={fight.youHp} onChange={setYouHp} /> : null}
-            </div>
-          ) : (
-            <p className="text-xs leading-5 text-muted-foreground">
-              {you && foe ? `${you.name} vs ${foe.name}. ` : ""}
-              {desktop ? "Drag the top bar. Alt+Shift+S lets the mouse pass through to the game." : "This is the panel. The desktop app keeps it above the game window."}
-            </p>
-          )}
+          <label className="mt-3 block">
+            <span className="sr-only">Pokémon in front of you</span>
+            <input
+              value={query}
+              placeholder={foe ? foe.name : "Pokémon in front of you"}
+              className="h-7 w-full border border-[#12161a] bg-[#1a1e22] px-2 text-[13px] text-white outline-none placeholder:text-[#8b97a3]"
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </label>
+          {matches.length > 0 ? (
+            <ul className="mt-1 border border-[#12161a] bg-[#1a1e22]">
+              {matches.map((species) => (
+                <li key={species.id}>
+                  <button
+                    type="button"
+                    className="flex w-full items-baseline justify-between px-2 py-1 text-left text-[13px] text-[#d5dde4] hover:bg-[#3c4652]"
+                    onClick={() => chooseFoe(species.id)}
+                  >
+                    <span>{species.name}</span>
+                    <span className="text-[11px] text-[#8b97a3]">{species.types.join(" / ")}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
-      </Panel>
+      </Window>
     </div>
+  )
+}
+
+function Window({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className="overflow-hidden border border-[#9aa4ae] bg-[#2c3136] text-[#e7edf2] shadow-[inset_1px_1px_0_#c5ced6,inset_-1px_-1px_0_#15181b]"
+      style={{ fontFamily: "Tahoma, Verdana, sans-serif" }}
+    >
+      {children}
+    </div>
+  )
+}
+
+function TitleBar({ title, level, onClose }: { title: string; level?: string; onClose?: () => void }) {
+  return (
+    <header className="hud-drag flex items-center gap-2 border-b border-[#12161a] bg-[#3a424c] px-2 py-1">
+      <p className="min-w-0 flex-1 truncate text-[13px] text-white">{title}</p>
+      {level ? <p className="text-[12px] text-[#f0d36a]">{level}</p> : null}
+      {onClose ? (
+        <button type="button" className="hud-nodrag px-1 text-[12px] text-[#d5dde4] hover:text-white" onClick={onClose}>
+          ✕
+        </button>
+      ) : null}
+    </header>
   )
 }
 
@@ -223,20 +203,4 @@ declare global {
       onClickThrough: (callback: (on: boolean) => void) => () => void
     }
   }
-}
-
-function Panel({ children }: { children: ReactNode }) {
-  return <div className="overflow-hidden rounded-[22px] border border-white/10 bg-[#121610]/95 shadow-[0_24px_60px_rgba(0,0,0,0.45)]">{children}</div>
-}
-
-function Range({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return (
-    <label className="block text-xs text-muted-foreground">
-      <span className="flex justify-between">
-        {label}
-        <span className="text-foreground">{value}%</span>
-      </span>
-      <input className="mt-1 w-full accent-[#e25b2a]" type="range" min={1} max={100} value={value} onChange={(event) => onChange(Number(event.target.value))} />
-    </label>
-  )
 }
