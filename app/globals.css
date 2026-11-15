@@ -138,7 +138,8 @@
 
 html.hud-root,
 html.hud-root body {
-  background: transparent !important;
+  /* Solid fill so Discord screen share can capture the overlay window. */
+  background: #f8f8f8 !important;
 }
 
 html.hud-root nextjs-portal,

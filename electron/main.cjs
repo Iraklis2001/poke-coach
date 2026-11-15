@@ -37,11 +37,13 @@ function createWindow() {
     minWidth: 360,
     minHeight: 180,
     frame: false,
-    transparent: true,
+    // Solid window (not transparent). Discord's whole-screen capture often
+    // skips layered/transparent Electron windows even when content protection is off.
+    transparent: false,
     alwaysOnTop: true,
     hasShadow: true,
     resizable: true,
-    backgroundColor: "#00000000",
+    backgroundColor: "#f8f8f8",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -51,9 +53,8 @@ function createWindow() {
   })
 
   overlay = win
-  // Keep capture on so Discord screen share can show Slate to friends.
   win.setContentProtection(false)
-  win.setAlwaysOnTop(true, "screen-saver")
+  win.setAlwaysOnTop(true, "floating")
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
   function setPassThrough(next) {
