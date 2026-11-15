@@ -1,38 +1,52 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { fillSlotFromSummary, readSummaryText } from "./summary-text"
+import { fillSlotFromSummary } from "./summary-text"
 
-test("summary text reads ampharos name, level, ability, nature, and moves", () => {
-  const text = `Ampharos
-Lv. 99 Johto ID: 93818476
-Ability Static
-Nature Calm
-OT Magicstickcy
-Moves
-Thunderbolt 15/15
-Thunder Wave 20/20
-Thunder 10/10
-Dragon Pulse 10/10`
-  const read = readSummaryText(text)
-  assert.equal(read.species, "Ampharos")
-  assert.equal(read.level, 99)
-  assert.equal(read.ability, "Static")
-  assert.equal(read.nature, "Calm")
-  assert.deepEqual(read.moves, ["Thunderbolt", "Thunder Wave", "Thunder", "Dragon Pulse"])
+const catalog = {
+  species: [
+    {
+      id: "ampharos",
+      name: "Ampharos",
+      num: 181,
+      types: ["Electric"],
+      stats: { hp: 1, atk: 1, def: 1, spa: 1, spd: 1, spe: 1 },
+      weight: 1,
+      abilities: [{ id: "static", name: "Static", hidden: false }],
+    },
+  ],
+  moves: [
+    { id: "thunderbolt", name: "Thunderbolt", type: "Electric", category: "Special" as const, bp: 90, acc: 100, pp: 15, priority: 0, desc: "", flags: [] },
+    { id: "thunderwave", name: "Thunder Wave", type: "Electric", category: "Status" as const, bp: 0, acc: 90, pp: 20, priority: 0, desc: "", flags: [] },
+    { id: "thunder", name: "Thunder", type: "Electric", category: "Special" as const, bp: 110, acc: 70, pp: 10, priority: 0, desc: "", flags: [] },
+    { id: "dragonpulse", name: "Dragon Pulse", type: "Dragon", category: "Special" as const, bp: 85, acc: 100, pp: 10, priority: 0, desc: "", flags: [] },
+  ],
+  abilities: [{ id: "static", name: "Static", desc: "" }],
+  natures: [{ id: "calm", name: "Calm", plus: "spd" as const, minus: "atk" as const }],
+}
+
+test("messy OCR from the Ampharos summary still fills the slot", () => {
+  const slot = fillSlotFromSummary(
+    `Ampharos Liss so 1 Sss1s47s x
+Ex Nature, - r.
+Current T1750 Calm .
+Til Net 256407
+Moves Magicstichey AT 16203102
+Thunderbolt 15015 Bag jis po oo
+Thunder Wave am || TO 1591610
+Thunder 1010 SPOEF 248 26056
+Dragon Pulse wo He 03.051`,
+    catalog,
+  )
+  assert.equal(slot?.speciesId, "ampharos")
+  assert.equal(slot?.natureId, "calm")
+  assert.ok(slot?.moves)
+  assert.deepEqual(
+    slot.moves.map((move) => move.id),
+    ["thunderbolt", "thunderwave", "thunder", "dragonpulse"],
+  )
 })
 
-test("fillSlotFromSummary maps ampharos onto catalog ids", () => {
-  const catalog = {
-    species: [{ id: "ampharos", name: "Ampharos", num: 181, types: ["Electric"], stats: { hp: 1, atk: 1, def: 1, spa: 1, spd: 1, spe: 1 }, weight: 1, abilities: [{ id: "static", name: "Static", hidden: false }] }],
-    moves: [
-      { id: "thunderbolt", name: "Thunderbolt", type: "Electric", category: "Special" as const, bp: 90, acc: 100, pp: 15, priority: 0, desc: "", flags: [] },
-      { id: "thunderwave", name: "Thunder Wave", type: "Electric", category: "Status" as const, bp: 0, acc: 90, pp: 20, priority: 0, desc: "", flags: [] },
-      { id: "thunder", name: "Thunder", type: "Electric", category: "Special" as const, bp: 110, acc: 70, pp: 10, priority: 0, desc: "", flags: [] },
-      { id: "dragonpulse", name: "Dragon Pulse", type: "Dragon", category: "Special" as const, bp: 85, acc: 100, pp: 10, priority: 0, desc: "", flags: [] },
-    ],
-    abilities: [{ id: "static", name: "Static", desc: "" }],
-    natures: [{ id: "calm", name: "Calm", plus: "spd" as const, minus: "atk" as const }],
-  }
+test("clean Ampharos summary still fills the slot", () => {
   const slot = fillSlotFromSummary(
     `Ampharos
 Lv. 99

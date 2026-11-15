@@ -82,14 +82,11 @@ function Hud() {
   const [boxTick, setBoxTick] = useState(0)
   const [seen, setSeen] = useState("")
   const [fillBusy, setFillBusy] = useState(false)
-  const [through, setThrough] = useState(false)
-  const throughRef = useRef(false)
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS)
   const fightRef = useRef(fight)
   const catalogRef = useRef(catalog)
   fightRef.current = fight
   catalogRef.current = catalog
-  throughRef.current = through
   const matches = query.trim() ? searchSpecies(catalog, query, 6) : []
 
   useEffect(() => {
@@ -104,26 +101,6 @@ function Hud() {
     window.slate.setCompact?.(prefs.compact)
     window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs))
   }, [desktop, prefs])
-
-  useEffect(() => {
-    if (!desktop || !window.slate) return
-    if (!through) {
-      window.slate.setClickThrough(false)
-      return
-    }
-    window.slate.setClickThrough(true)
-    const onMove = (event: MouseEvent) => {
-      if (!throughRef.current) return
-      const hit = document.elementFromPoint(event.clientX, event.clientY)
-      const overPanel = Boolean(hit?.closest("[data-catch]"))
-      window.slate?.setClickThrough(!overPanel)
-    }
-    window.addEventListener("mousemove", onMove)
-    return () => {
-      window.removeEventListener("mousemove", onMove)
-      window.slate?.setClickThrough(false)
-    }
-  }, [desktop, through])
 
   useEffect(() => {
     if (!watching || !window.slate?.readRegion) return
@@ -203,11 +180,11 @@ function Hud() {
   async function fillActiveFromSummary() {
     if (!window.slate?.pickRegion || !window.slate.readRegion || fillBusy) return
     setFillBusy(true)
-    setSeen("Open the summary, then drag a box over it.")
+    setSeen("Draw a box over the open summary window.")
     try {
       const box = await window.slate.pickRegion()
       if (!box) {
-        setSeen("Summary box cancelled.")
+        setSeen("Cancelled.")
         return
       }
       const result = await window.slate.readRegion(box)
@@ -215,14 +192,19 @@ function Hud() {
         setSeen(result.error)
         return
       }
+      if (!result.text.trim()) {
+        setSeen("Nothing was read. Move Slate aside and try again.")
+        return
+      }
       const filled = fillSlotFromSummary(result.text, catalog)
       if (!filled) {
-        setSeen("Could not read that summary. Draw the whole Ampharos window.")
+        setSeen("No Pokémon name found. Cover the whole summary, including the name.")
         return
       }
       patchSlot(fight.active, filled)
       const name = catalog.speciesById.get(filled.speciesId ?? "")?.name ?? "Pokémon"
-      setSeen(`Filled slot ${fight.active + 1}: ${name}.`)
+      const moveCount = filled.moves?.length ?? 0
+      setSeen(`${name} saved in slot ${fight.active + 1}${moveCount ? ` · ${moveCount} moves` : ""}.`)
     } catch {
       setSeen("The summary could not be read.")
     } finally {
@@ -248,15 +230,6 @@ function Hud() {
             onClose={desktop ? () => window.slate?.close() : undefined}
             onToggleCompact={() => patchPrefs({ compact: !prefs.compact })}
           />
-
-          {through ? (
-            <div className="hud-nodrag flex items-center gap-2 border-b-2 border-black bg-[#e0e0e0] px-3 py-2">
-              <p className="min-w-0 flex-1 text-[12px] font-bold text-black">Hover here to use the window.</p>
-              <button type="button" className="border-2 border-black bg-white px-2 py-0.5 text-[12px] font-bold text-black hover:text-[#3b4cca]" onClick={() => setThrough(false)}>
-                Unlock
-              </button>
-            </div>
-          ) : null}
 
           <div className="hud-nodrag px-3 py-3">
             <p className="text-[12px] font-bold text-black">{you?.name ?? "Your Pokémon"}</p>
@@ -303,53 +276,11 @@ function Hud() {
                   <span className="sr-only">Pokémon in front of you</span>
                   <input
                     value={query}
-                    placeholder={foe ? foe.name : "Pokémon in front of you"}
+                    placeholder={foe ? foe.name : "Type the foe if needed"}
                     className="h-8 w-full rounded-none border-2 border-black bg-white px-2 text-[13px] text-black outline-none placeholder:text-[#707070]"
                     onChange={(event) => setQuery(event.target.value)}
                   />
                 </label>
-                {desktop ? (
-                  <div className="mt-2 flex items-stretch overflow-hidden rounded-none border-2 border-black bg-[#3b4cca]">
-                    <button
-                      type="button"
-                      className="px-2.5 py-2 text-[12px] font-bold text-white hover:text-yellow-200"
-                      onClick={() => void watchBattle(setWatching, setSeen)}
-                    >
-                      {watching ? "Stop" : "Watch"}
-                    </button>
-                    <span className="w-0.5 self-stretch bg-black" aria-hidden />
-                    <button
-                      type="button"
-                      className="px-2.5 py-2 text-[12px] font-bold text-white hover:text-yellow-200"
-                      onClick={() => void chooseBox(setWatching, setSeen, setBoxTick)}
-                    >
-                      Foe box
-                    </button>
-                    <span className="w-0.5 self-stretch bg-black" aria-hidden />
-                    <button
-                      type="button"
-                      className="px-2.5 py-2 text-[12px] font-bold text-white hover:text-yellow-200 disabled:opacity-60"
-                      disabled={fillBusy}
-                      onClick={() => void fillActiveFromSummary()}
-                    >
-                      {fillBusy ? "…" : "Fill"}
-                    </button>
-                    <span className="w-0.5 self-stretch bg-black" aria-hidden />
-                    <button
-                      type="button"
-                      className={cn("px-2.5 py-2 text-[12px] font-bold text-white hover:text-yellow-200", through && "text-yellow-200")}
-                      onClick={() => setThrough((current) => !current)}
-                    >
-                      {through ? "Unlock" : "Through"}
-                    </button>
-                    {seen ? (
-                      <>
-                        <span className="w-0.5 self-stretch bg-black" aria-hidden />
-                        <p className="min-w-0 flex-1 truncate px-2 py-2 text-[11px] font-bold text-white">{seen}</p>
-                      </>
-                    ) : null}
-                  </div>
-                ) : null}
                 {matches.length > 0 ? (
                   <ul className="mt-1 overflow-hidden rounded-none border-2 border-black bg-white">
                     {matches.map((species) => (
@@ -367,36 +298,36 @@ function Hud() {
                   </ul>
                 ) : null}
               </>
-            ) : (
-              <div className="mt-2 flex items-stretch overflow-hidden rounded-none border-2 border-black bg-[#3b4cca] text-[11px]">
-                {desktop ? (
-                  <>
-                    <button
-                      type="button"
-                      className="px-2.5 py-2 font-bold text-white hover:text-yellow-200"
-                      onClick={() => void watchBattle(setWatching, setSeen)}
-                    >
-                      {watching ? "Stop" : "Watch"}
-                    </button>
-                    <span className="w-0.5 self-stretch bg-black" aria-hidden />
-                    <button
-                      type="button"
-                      className="px-2.5 py-2 font-bold text-white hover:text-yellow-200 disabled:opacity-60"
-                      disabled={fillBusy}
-                      onClick={() => void fillActiveFromSummary()}
-                    >
-                      Fill
-                    </button>
-                    <span className="w-0.5 self-stretch bg-black" aria-hidden />
-                  </>
-                ) : null}
-                {seen ? (
-                  <p className="min-w-0 flex-1 truncate px-2 py-2 font-bold text-white">{seen}</p>
-                ) : (
-                  <p className="min-w-0 flex-1 truncate px-2 py-2 font-bold text-white">Click a slot, then Fill.</p>
-                )}
+            ) : null}
+
+            {desktop ? (
+              <div className="mt-3">
+                <div className="flex items-stretch overflow-hidden rounded-none border-2 border-black bg-[#3b4cca]">
+                  <button
+                    type="button"
+                    className="flex-1 px-2 py-2 text-[12px] font-bold text-white hover:text-yellow-200 disabled:opacity-60"
+                    disabled={fillBusy}
+                    onClick={() => void fillActiveFromSummary()}
+                  >
+                    {fillBusy ? "Reading…" : "1. My Pokémon"}
+                  </button>
+                  <span className="w-0.5 self-stretch bg-black" aria-hidden />
+                  <button
+                    type="button"
+                    className="flex-1 px-2 py-2 text-[12px] font-bold text-white hover:text-yellow-200"
+                    onClick={() => void startFightWatch(watching, setWatching, setSeen, setBoxTick)}
+                  >
+                    {watching ? "Stop fight" : "2. The fight"}
+                  </button>
+                </div>
+                <p className="mt-1 text-[11px] font-bold text-black">
+                  {seen ||
+                    (watching
+                      ? "Reading the fight text."
+                      : "1 reads the open summary into the red slot. 2 reads the wild Pokémon.")}
+                </p>
               </div>
-            )}
+            ) : null}
           </div>
         </Window>
       </div>
@@ -418,32 +349,29 @@ function loadPrefs(): Prefs {
   }
 }
 
-async function chooseBox(
+async function startFightWatch(
+  watching: boolean,
   setWatching: (next: boolean) => void,
   setSeen: (next: string) => void,
   setBoxTick: (update: (tick: number) => number) => void,
 ) {
-  const box = await window.slate?.pickRegion?.()
-  if (!box) return
-  window.localStorage.setItem(BOX_KEY, JSON.stringify(box))
-  setSeen("Watching the box.")
-  setBoxTick((tick) => tick + 1)
-  setWatching(true)
-}
-
-async function watchBattle(setWatching: (next: boolean | ((current: boolean) => boolean)) => void, setSeen: (next: string) => void) {
-  const api = window.slate
-  if (!api?.pickRegion || !api.readRegion) return
-  const existing = window.localStorage.getItem(BOX_KEY)
-  if (!existing) {
-    const box = await api.pickRegion()
-    if (!box) return
-    window.localStorage.setItem(BOX_KEY, JSON.stringify(box))
-    setSeen("Watching the box.")
-    setWatching(true)
+  if (watching) {
+    setWatching(false)
+    setSeen("Stopped reading the fight.")
     return
   }
-  setWatching((current) => !current)
+  const api = window.slate
+  if (!api?.pickRegion || !api.readRegion) return
+  setSeen("Draw a box around “A wild … attacks!” and “Go …!”")
+  const box = await api.pickRegion()
+  if (!box) {
+    setSeen("Cancelled.")
+    return
+  }
+  window.localStorage.setItem(BOX_KEY, JSON.stringify(box))
+  setBoxTick((tick) => tick + 1)
+  setSeen("Reading the fight text.")
+  setWatching(true)
 }
 
 function PartyStrip({
