@@ -54,14 +54,26 @@ function createWindow() {
 
   overlay = win
   win.setContentProtection(false)
-  win.setAlwaysOnTop(true, "floating")
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+
+  function keepOnTop() {
+    if (win.isDestroyed()) return
+    // screen-saver beats most game windows; floating let PRO bury Slate.
+    win.setAlwaysOnTop(true, "screen-saver")
+    try {
+      win.moveTop()
+    } catch {
+      // moveTop is best-effort on some Windows builds
+    }
+  }
 
   function setPassThrough(next) {
     passThrough = next
     win.setIgnoreMouseEvents(passThrough, { forward: true })
     if (!win.isDestroyed()) win.webContents.send("click-through", passThrough)
   }
+
+  keepOnTop()
 
   ipcMain.removeAllListeners("click-through")
   ipcMain.removeAllListeners("opacity")
@@ -104,8 +116,18 @@ function createWindow() {
 
   win.on("moved", saveBounds)
   win.on("resized", saveBounds)
-  win.on("focus", () => setPassThrough(false))
+  win.on("show", keepOnTop)
+  win.on("focus", () => {
+    setPassThrough(false)
+    keepOnTop()
+  })
+  // When you click the game, Windows drops Slate under it — pin it back without stealing keys.
+  win.on("blur", () => {
+    setTimeout(keepOnTop, 50)
+  })
+  const pinTimer = setInterval(keepOnTop, 2000)
   win.on("closed", () => {
+    clearInterval(pinTimer)
     overlay = null
     globalShortcut.unregister("Alt+Shift+S")
   })
