@@ -66,18 +66,17 @@ function pickMoves(text: string, moves: CatalogMove[], learnset: string[] | null
   const focus = movesAt >= 0 ? text.slice(movesAt) : text
 
   const fromLines = movesFromPpLines(focus, pool)
-  if (fromLines.length >= 4) return fromLines.slice(0, 4)
-
   const fromScan = findAllNamedInOrder(focus, pool)
+  const fromFuzzy = fuzzyMovesFromText(focus, pool)
   const merged: MoveChoice[] = []
-  for (const move of [...fromLines, ...fromScan]) {
-    if (!merged.some((entry) => entry.id === move.id)) merged.push({ id: move.id })
+  for (const move of [...fromLines, ...fromScan.map((entry) => ({ id: entry.id })), ...fromFuzzy.map((entry) => ({ id: entry.id }))]) {
+    if (!merged.some((entry) => entry.id === move.id)) merged.push(move)
     if (merged.length >= 4) break
   }
-  if (merged.length >= 2 || !allowed) return merged
+  if (merged.length >= 4) return merged.slice(0, 4)
 
   // Last resort: scan the whole summary with the learnset pool.
-  for (const move of findAllNamedInOrder(text, pool)) {
+  for (const move of [...findAllNamedInOrder(text, pool), ...fuzzyMovesFromText(text, pool)]) {
     if (!merged.some((entry) => entry.id === move.id)) merged.push({ id: move.id })
     if (merged.length >= 4) break
   }
@@ -106,7 +105,7 @@ function movesFromPpLines(text: string, pool: CatalogMove[]): MoveChoice[] {
 
 function matchNamedLoose(raw: string, entries: CatalogMove[]): CatalogMove | null {
   const folded = fold(raw)
-  if (!folded) return null
+  if (!folded || folded.length < 3) return null
   const exact = entries.find((entry) => fold(entry.name) === folded)
   if (exact) return exact
   // OCR often drops spaces or trailing letters: "ThunderWve", "DragonPulse"
@@ -115,8 +114,69 @@ function matchNamedLoose(raw: string, entries: CatalogMove[]): CatalogMove | nul
     return name.startsWith(folded) || folded.startsWith(name) || (folded.length >= 5 && name.includes(folded))
   })
   if (close.length === 1) return close[0]
-  close.sort((a, b) => fold(a.name).length - fold(b.name).length)
-  return close[0] ?? null
+  if (close.length > 1) {
+    close.sort((a, b) => Math.abs(fold(a.name).length - folded.length) - Math.abs(fold(b.name).length - folded.length))
+    return close[0]
+  }
+  const maxDist = folded.length >= 8 ? 2 : folded.length >= 5 ? 1 : 0
+  if (maxDist === 0) return null
+  let best: CatalogMove | null = null
+  let bestDist = maxDist + 1
+  for (const entry of entries) {
+    const name = fold(entry.name)
+    if (Math.abs(name.length - folded.length) > maxDist) continue
+    const dist = editDistance(name, folded)
+    if (dist < bestDist) {
+      best = entry
+      bestDist = dist
+    } else if (dist === bestDist) {
+      best = null
+    }
+  }
+  return bestDist <= maxDist ? best : null
+}
+
+function fuzzyMovesFromText(text: string, pool: CatalogMove[]): CatalogMove[] {
+  const tokens = text
+    .replace(/[|/\\]+/g, " ")
+    .split(/\r?\n| {2,}/)
+    .flatMap((line) => {
+      const cleaned = line.replace(/\d+\s*\/\s*\d+/g, " ").replace(/\d{2,}/g, " ").replace(/\s+/g, " ").trim()
+      if (!cleaned) return []
+      const parts = cleaned.split(/\s+/)
+      const out: string[] = []
+      for (let i = 0; i < parts.length; i += 1) {
+        out.push(parts[i])
+        if (i + 1 < parts.length) out.push(`${parts[i]} ${parts[i + 1]}`)
+        if (i + 2 < parts.length) out.push(`${parts[i]} ${parts[i + 1]} ${parts[i + 2]}`)
+      }
+      return out
+    })
+  const found: CatalogMove[] = []
+  for (const token of tokens) {
+    if (!/^[A-Za-z]/.test(token)) continue
+    const move = matchNamedLoose(token, pool)
+    if (!move) continue
+    if (found.some((entry) => entry.id === move.id)) continue
+    found.push(move)
+    if (found.length >= 4) break
+  }
+  return found
+}
+
+function editDistance(a: string, b: string) {
+  const rows = a.length + 1
+  const cols = b.length + 1
+  const grid = Array.from({ length: rows }, () => Array<number>(cols).fill(0))
+  for (let i = 0; i < rows; i += 1) grid[i][0] = i
+  for (let j = 0; j < cols; j += 1) grid[0][j] = j
+  for (let i = 1; i < rows; i += 1) {
+    for (let j = 1; j < cols; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      grid[i][j] = Math.min(grid[i - 1][j] + 1, grid[i][j - 1] + 1, grid[i - 1][j - 1] + cost)
+    }
+  }
+  return grid[a.length][b.length]
 }
 
 function findNamedInText<T extends { id: string; name: string }>(foldedText: string, entries: T[]): T | null {

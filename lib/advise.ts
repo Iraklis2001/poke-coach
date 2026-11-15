@@ -774,13 +774,22 @@ export function advise(you: Fighter, foe: Fighter, bench: Fighter[], weather: We
 
   let verdict: Advice["verdict"] = "rough"
   let chosen: Rated | undefined = bestAttack
+  const superEffective = Boolean(bestAttack && (bestAttack.factor ?? 0) >= 2 && bestAttack.kind === "attack")
   if (unsetHiddenPower && !safeKo && attackScore < 30) {
     verdict = "rough"
     chosen = unsetHiddenPower
   } else if (safeKo) {
     verdict = "stay"
     chosen = bestAttack
-  } else if (bestSwitch && switchScore >= Math.max(attackScore, statusScore) + 12 && switchScore >= 40) {
+  } else if (superEffective && attackScore >= 20 && !(bestSwitch && switchScore >= attackScore + 40)) {
+    // Keep a super-effective click unless a switch is clearly much stronger.
+    verdict = "stay"
+    chosen = bestAttack
+  } else if (
+    bestSwitch &&
+    switchScore >= Math.max(attackScore, statusScore) + (superEffective ? 40 : 18) &&
+    switchScore >= 50
+  ) {
     verdict = "switch"
     chosen = bestAttack
   } else if (bestStatus && statusScore >= attackScore + 8 && (bestAttack?.diesFirst || attackScore < 45)) {
@@ -788,9 +797,11 @@ export function advise(you: Fighter, foe: Fighter, bench: Fighter[], weather: We
     chosen = bestStatus
   } else if (bestAttack && attackScore > 8) {
     const attackFactor = bestAttack.factor ?? 1
-    verdict = attackFactor > 0 && attackFactor < 1 && attackScore < 28 && !(bestSwitch && switchScore > attackScore) ? "rough" : "stay"
+    verdict = attackFactor > 0 && attackFactor < 1 && attackScore < 28 && !(bestSwitch && switchScore > attackScore + 20)
+      ? "rough"
+      : "stay"
     chosen = bestAttack
-  } else if (bestSwitch && switchScore > 0) {
+  } else if (bestSwitch && switchScore > 0 && attackScore < 12) {
     verdict = "switch"
   } else if (bestStatus) {
     verdict = "stay"

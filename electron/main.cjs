@@ -1,4 +1,4 @@
-const { app, BrowserWindow, desktopCapturer, globalShortcut, ipcMain, screen } = require("electron")
+const { app, BrowserWindow, desktopCapturer, globalShortcut, ipcMain, nativeImage, screen } = require("electron")
 const fs = require("fs")
 const path = require("path")
 
@@ -172,6 +172,26 @@ function pickRegion() {
 
 let reader = null
 
+function boostForOcr(png) {
+  try {
+    const image = nativeImage.createFromBuffer(png)
+    const { width, height } = image.getSize()
+    if (!width || !height) return png
+    const bgra = Buffer.from(image.toBitmap())
+    // PRO summaries are light text on a dark panel. Flip to black text on white.
+    for (let i = 0; i + 3 < bgra.length; i += 4) {
+      const gray = 0.114 * bgra[i] + 0.587 * bgra[i + 1] + 0.299 * bgra[i + 2]
+      const value = gray < 150 ? 255 : 0
+      bgra[i] = value
+      bgra[i + 1] = value
+      bgra[i + 2] = value
+    }
+    return nativeImage.createFromBitmap(bgra, { width, height }).toPNG()
+  } catch {
+    return png
+  }
+}
+
 async function recognize(png) {
   if (!reader) {
     const { createWorker } = require("tesseract.js")
@@ -188,8 +208,14 @@ async function recognize(png) {
       })
   }
   const worker = await reader
-  const result = await worker.recognize(png)
-  return result.data.text || ""
+  const boosted = boostForOcr(png)
+  const first = await worker.recognize(boosted)
+  let text = first.data.text || ""
+  if ((text.match(/[A-Za-z]{4,}/g) || []).length < 8) {
+    const second = await worker.recognize(png)
+    if ((second.data.text || "").length > text.length) text = second.data.text || text
+  }
+  return text
 }
 
 async function captureRegion(region) {

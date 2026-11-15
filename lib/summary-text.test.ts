@@ -48,6 +48,45 @@ Dragon Pulse wo He 03.051`,
   assert.equal(slot.moves.length, 4)
 })
 
+test("OCR typos still recover learnset moves", () => {
+  const slot = fillSlotFromSummary(
+    `Gengar Lv. 100
+Moves
+Thunderb0lt 15/15
+Psychlc 10/10
+Shadow Ball 15/15
+Sludge Bomb 10/10`,
+    {
+      ...catalog,
+      species: [
+        {
+          id: "gengar",
+          name: "Gengar",
+          num: 94,
+          types: ["Ghost", "Poison"],
+          stats: { hp: 1, atk: 1, def: 1, spa: 1, spd: 1, spe: 1 },
+          weight: 1,
+          abilities: [{ id: "cursedbody", name: "Cursed Body", hidden: false }],
+        },
+      ],
+      moves: [
+        ...catalog.moves,
+        { id: "psychic", name: "Psychic", type: "Psychic", category: "Special" as const, bp: 90, acc: 100, pp: 10, priority: 0, desc: "", flags: [] },
+        { id: "shadowball", name: "Shadow Ball", type: "Ghost", category: "Special" as const, bp: 80, acc: 100, pp: 15, priority: 0, desc: "", flags: [] },
+        { id: "sludgebomb", name: "Sludge Bomb", type: "Poison", category: "Special" as const, bp: 90, acc: 100, pp: 10, priority: 0, desc: "", flags: [] },
+      ],
+      learnsets: {
+        gengar: ["thunderbolt", "psychic", "shadowball", "sludgebomb"],
+      },
+    },
+  )
+  assert.equal(slot?.speciesId, "gengar")
+  assert.ok(slot?.moves)
+  assert.equal(slot.moves.length, 4)
+  assert.ok(slot.moves.some((move) => move.id === "thunderbolt"))
+  assert.ok(slot.moves.some((move) => move.id === "psychic"))
+})
+
 test("clean Ampharos summary still fills the slot", () => {
   const slot = fillSlotFromSummary(
     `Ampharos

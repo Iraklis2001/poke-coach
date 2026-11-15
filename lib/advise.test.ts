@@ -106,3 +106,38 @@ test("levitate stops earthquake", () => {
   assert.equal(advice.moves.find((move) => move.name === "Earthquake")?.factor, 0)
   assert.match(advice.paragraphs.join(" "), /Levitate/)
 })
+
+test("gengar keeps thunderbolt into tentacool instead of switching to tyranitar", () => {
+  const fight = practiceFight()
+  fight.party[0] = {
+    speciesId: "gengar",
+    level: 100,
+    natureId: "timid",
+    abilityId: "cursedbody",
+    moves: ["thunderbolt", "psychic", "shadowball"].map((id) => ({ id })),
+    types: null,
+    stats: null,
+  }
+  fight.party[1] = {
+    speciesId: "tyranitar",
+    level: 100,
+    natureId: "adamant",
+    abilityId: "sandstream",
+    moves: ["crunch", "stoneedge", "earthquake"].map((id) => ({ id })),
+    types: null,
+    stats: null,
+  }
+  fight.foe = {
+    speciesId: "tentacool",
+    level: 32,
+    natureId: "modest",
+    abilityId: "cleabody",
+    moves: [],
+    types: null,
+    stats: null,
+  }
+  const advice = run(fight, 0)
+  assert.equal(advice.verdict, "stay")
+  assert.match(advice.headline, /Thunderbolt|Psychic/)
+  assert.equal(advice.switches.some((option) => option.recommended), false)
+})

@@ -238,7 +238,10 @@ function Hud() {
           />
 
           <div className="hud-nodrag px-3 py-3">
-            <p className="text-[12px] font-bold text-black">{you?.name ?? "Your Pokémon"}</p>
+            <p className="text-[12px] font-bold text-black">
+              {you?.name ?? "Your Pokémon"}
+              {youSlot.moves.length > 0 && youSlot.moves.length < 4 ? ` · only ${youSlot.moves.length}/4 moves` : ""}
+            </p>
 
             {switchPick && advice?.verdict === "switch" ? (
               <div className="mt-1.5">
